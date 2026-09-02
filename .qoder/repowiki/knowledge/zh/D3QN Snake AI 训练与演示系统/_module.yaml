@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: ""
+title: D3QN Snake AI 训练与演示系统
+scope:
+    - README.md
+    - requirements.txt
+    - d3qn_agent.py
+    - d3qn_network.py
+    - demo.py
+    - snake_env.py
+    - train.py
+source_files: []
+depends_on: []
+related_to: []

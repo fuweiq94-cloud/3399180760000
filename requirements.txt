@@ -1,0 +1,14 @@
+# Requirements for D3QN Snake AI
+# Core dependencies
+
+torch>=2.0.0
+numpy>=1.24.0
+gymnasium>=0.29.0
+pygame>=2.6.0
+matplotlib>=3.7.0
+
+# Optional: TensorBoard for visualization
+# torch.utils.tensorboard  (included in PyTorch)
+
+# Optional: Better progress bar during training
+# tqdm>=4.65.0

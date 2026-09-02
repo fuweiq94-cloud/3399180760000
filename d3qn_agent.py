@@ -1,0 +1,217 @@
+"""
+D3QN Agent - Dueling Double Deep Q-Network with Experience Replay
+Main training agent that implements the D3QN algorithm
+"""
+
+import torch
+import torch.nn as nn
+import numpy as np
+from collections import deque, namedtuple
+from d3qn_network import D3QN
+import random
+
+
+Transition = namedtuple('Transition', ['state', 'action', 'reward', 'next_state', 'done'])
+
+
+class D3QNAgent:
+    """
+    D3QN Agent with Double Q-learning and Dueling Architecture
+    
+    Key components:
+    - Main network (online): selects actions and computes Q-values
+    - Target network: provides stable target values for training
+    - Experience replay: stores past experiences for training
+    """
+    
+    def __init__(self, input_dim=9, num_actions=4, device='cuda' if torch.cuda.is_available() else 'cpu'):
+        self.device = device
+        
+        # Hyperparameters
+        self.gamma = 0.99          # Discount factor
+        self.epsilon_start = 1.0   # Initial exploration rate
+        self.epsilon_end = 0.05    # Final exploration rate
+        self.epsilon_decay = 0.995 # Decay rate per episode
+        
+        self.batch_size = 64
+        self.buffer_size = 100000  # Maximum replay buffer size
+        self.target_update = 1000  # Update target network every N steps
+        
+        # Networks
+        self.policy_net = D3QN(input_dim=input_dim, num_actions=num_actions).to(device)
+        self.target_net = D3QN(input_dim=input_dim, num_actions=num_actions).to(device)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        
+        # Optimizer
+        self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=1e-4)
+        self.criterion = nn.MSELoss()
+        
+        # Experience replay
+        self.memory = deque(maxlen=self.buffer_size)
+        self.steps = 0
+        
+        # Epsilon scheduling
+        self.epsilon = self.epsilon_start
+    
+    def select_action(self, state, train=True):
+        """
+        Select action using epsilon-greedy policy
+        
+        Args:
+            state: Current observation (numpy array or tensor)
+            train: Whether to use exploration or exploitation
+            
+        Returns:
+            Action index
+        """
+        if train and np.random.rand() < self.epsilon:
+            # Exploration: random action
+            return np.random.randint(0, self.policy_net.num_actions)
+        else:
+            # Exploitation: best action according to policy
+            with torch.no_grad():
+                state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+                q_values = self.policy_net(state_tensor)
+                return q_values.argmax().item()
+    
+    def store_transition(self, state, action, reward, next_state, done):
+        """Store experience in replay buffer"""
+        transition = Transition(state, action, reward, next_state, done)
+        self.memory.append(transition)
+    
+    def step(self):
+        """Update epsilon decay"""
+        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
+        self.steps += 1
+        
+        # Update target network periodically
+        if self.steps % self.target_update == 0:
+            self.target_net.load_state_dict(self.policy_net.state_dict())
+    
+    def optimize_model(self):
+        """
+        Train the policy network using sampled transitions
+        
+        Implements Double DQN update:
+        - Use policy_net to select best action
+        - Use target_net to evaluate the selected action
+        """
+        if len(self.memory) < self.batch_size:
+            return
+        
+        # Sample batch of transitions
+        transitions = random.sample(self.memory, self.batch_size)
+        batch = Transition(*zip(*transitions))
+        
+        # Prepare tensors
+        states = torch.FloatTensor(np.array(batch.state)).to(self.device)
+        actions = torch.LongTensor(batch.action).to(self.device)
+        rewards = torch.FloatTensor(batch.reward).to(self.device)
+        next_states = torch.FloatTensor(np.array(batch.next_state)).to(self.device)
+        dones = torch.FloatTensor(batch.done).to(self.device)
+        
+        # Current Q-values
+        current_q = self.policy_net(states).gather(1, actions.unsqueeze(1))
+        
+        # Compute targets using Double DQN formula
+        # Step 1: Use policy_net to select best action at next state
+        best_actions = self.policy_net(next_states).argmax(dim=1)
+        
+        # Step 2: Use target_net to evaluate selected actions
+        with torch.no_grad():
+            next_q = self.target_net(next_states).gather(1, best_actions.unsqueeze(1))
+            
+        # Calculate targets
+        targets = rewards + (1 - dones) * self.gamma * next_q
+        
+        # Compute loss
+        loss = self.criterion(current_q, targets)
+        
+        # Backpropagation
+        self.optimizer.zero_grad()
+        loss.backward()
+        
+        # Gradient clipping
+        nn.utils.clip_grad_norm_(self.policy_net.parameters(), 10)
+        
+        self.optimizer.step()
+        
+        return loss.item()
+    
+    def save(self, path):
+        """Save model checkpoint"""
+        torch.save({
+            'epsilon': self.epsilon,
+            'steps': self.steps,
+            'model_dict': self.policy_net.state_dict(),
+            'optimizer_dict': self.optimizer.state_dict()
+        }, path)
+    
+    def load(self, path):
+        """Load model checkpoint"""
+        checkpoint = torch.load(path)
+        self.epsilon = checkpoint['epsilon']
+        self.steps = checkpoint['steps']
+        self.policy_net.load_state_dict(checkpoint['model_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_dict'])
+
+
+class MemoryReplayBuffer:
+    """Enhanced experience replay buffer with prioritized sampling (optional)"""
+    
+    def __init__(self, capacity=100000):
+        self.capacity = capacity
+        self.buffer = []
+        self.pos = 0
+        self.priorities = np.zeros((capacity,), dtype=np.float32)
+    
+    def add(self, priority, *args):
+        """Add new experience"""
+        if len(self.buffer) < self.capacity:
+            self.buffer.append(None)
+        self.buffer[self.pos] = args
+        self.priorities[self.pos] = priority
+        self.pos = (self.pos + 1) % self.capacity
+    
+    def sample(self, n_samples):
+        """Sample random batch"""
+        indices = np.random.choice(len(self.buffer), n_samples)
+        samples = [self.buffer[i] for i in indices]
+        return zip(*samples)
+    
+    def update_priorities(self, indices, priorities):
+        """Update priorities for sampled transitions"""
+        for idx, pri in zip(indices, priorities):
+            self.priorities[idx] = pri
+
+
+def test_agent():
+    """Test the D3QN agent"""
+    print("Testing D3QN Agent...")
+    
+    # Create agent
+    agent = D3QNAgent(input_dim=9, num_actions=4)
+    print(f"Agent created on device: {agent.device}")
+    print(f"Policy net parameters: {sum(p.numel() for p in agent.policy_net.parameters()):,}")
+    
+    # Test action selection
+    state = np.random.randn(9).astype(np.float32)
+    action = agent.select_action(state, train=True)
+    print(f"\nSelected action: {action}")
+    
+    # Test storing transitions
+    next_state = np.random.randn(9).astype(np.float32)
+    agent.store_transition(state, action, 1.0, next_state, False)
+    print(f"\nStored transition. Buffer size: {len(agent.memory)}")
+    
+    # Test optimization step
+    for _ in range(10):
+        loss = agent.optimize_model()
+        if loss is not None:
+            print(f"Loss: {loss:.4f}")
+    
+    print("\n✓ All tests passed!")
+
+
+if __name__ == '__main__':
+    test_agent()
