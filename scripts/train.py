@@ -9,16 +9,20 @@ import glob
 import json
 import time
 import sys
+import argparse
 from pathlib import Path
 
 # Add src directory to path for imports
 src_path = Path(__file__).parent.parent / 'src'
 sys.path.insert(0, str(src_path))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import numpy as np
 import matplotlib.pyplot as plt
 from envs import SnakeEnv
+from envs.snake_env import STEP_GUIDANCE_COEFF
 from agents import D3QNAgent
+from ckpt_utils import infer_model_arch
 
 # Anchor all project paths here so the script works from any cwd
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +50,9 @@ class Trainer:
                  resume=False, model_path=None,
                  on_episode=None, stop_event=None,
                  obs_type='vision', n_step=1, grid_size=30,
+                 epsilon_decay=None,
+                 reward_shaping='scaled',
+                 self_death_factor=1.5,
                  preview_interval=100):
         self.n_episodes = n_episodes
         self.max_steps = max_steps_per_episode
@@ -56,12 +63,15 @@ class Trainer:
         self.stop_event = stop_event    # threading.Event; .set() requests graceful stop
 
         # Create environment and agent
-        self.env = SnakeEnv(grid_size=grid_size, observation_type=obs_type)
+        self.env = SnakeEnv(grid_size=grid_size, observation_type=obs_type,
+                            reward_shaping=reward_shaping,
+                            self_death_factor=self_death_factor)
         if obs_type == 'grid':
             # Full-board CNN: bigger batches help, image replays need more RAM;
             # slower epsilon decay — pixel CNNs learn later, keep exploring
             self.agent = D3QNAgent(obs_type='grid', n_step=n_step, grid_size=grid_size,
-                                   buffer_size=50000, batch_size=128, epsilon_decay=0.999)
+                                   buffer_size=50000, batch_size=128,
+                                   epsilon_decay=epsilon_decay if epsilon_decay is not None else 0.999)
         else:
             self.agent = D3QNAgent(n_step=n_step)
         
@@ -77,6 +87,9 @@ class Trainer:
         self.scores = []
         self.losses = []
         self.epsilon_values = []
+        # Death-cause tally for this run: late game is dominated by
+        # self-collisions, and this makes that visible in logs/params
+        self.death_counts = {'wall': 0, 'self': 0, 'timeout': 0}
         
         # Start step
         self.total_steps = 0
@@ -280,6 +293,9 @@ class Trainer:
                 'obs_type': a.obs_type,
                 'grid_size': getattr(a, 'grid_size', None),
                 'input_dim': getattr(a, 'input_dim', None),
+                'reward_shaping': getattr(self.env, 'reward_shaping', 'flat'),
+                'self_death_factor': getattr(self.env, 'self_death_factor', 1.0),
+                'step_guidance_coeff': STEP_GUIDANCE_COEFF,
                 'num_actions': a.policy_net.num_actions,
                 'n_step': a.n_step,
                 'gamma': a.gamma,
@@ -309,6 +325,7 @@ class Trainer:
                 'avg_reward_last_100': round(float(np.mean(self.rewards[-100:])), 2) if self.rewards else None,
                 'final_epsilon': self.epsilon_values[-1] if self.epsilon_values else None,
                 'losses_recorded': len(self.losses),
+                'deaths': dict(self.death_counts),
             },
             'best': {
                 'criterion': f'avg_score_last_{self.best_avg_window}',
@@ -327,6 +344,7 @@ class Trainer:
                 'last_model': 'last_model.pth',
                 'params': 'params.json',
                 'plot': 'training_metrics.png',
+                'history': 'history.jsonl',
             },
         }
 
@@ -334,6 +352,17 @@ class Trainer:
         (run_dir / 'params.json').write_text(
             json.dumps(self.build_params_dict(stop_reason, snapshot),
                        indent=2, ensure_ascii=False), encoding='utf-8')
+
+    def _append_history(self, episode, score, reward, death=None):
+        """Append one line of per-episode history to the run folder —
+        the source data for the GUI's chart view."""
+        d = self._run_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / 'history.jsonl', 'a', encoding='utf-8') as f:
+            f.write(json.dumps({'episode': episode, 'score': score,
+                                'reward': round(reward, 2),
+                                'epsilon': round(self.agent.epsilon, 4),
+                                'death': death}) + '\n')
 
     def _write_plot(self, run_dir):
         best_idx = (self.best_episode - self.start_episode) \
@@ -379,6 +408,12 @@ class Trainer:
         print(f"Episode: {episode:5d} | Epsilon: {self.agent.epsilon:.4f} | "
               f"Avg Reward: {avg_reward:8.2f} | Score: {score:4d} | "
               f"Steps: {steps:5d} | Current ε: {self.agent.epsilon:.4f}")
+        total = sum(self.death_counts.values())
+        if total:
+            c = self.death_counts
+            print(f"Deaths this run: wall {c['wall']} ({c['wall']/total*100:.0f}%) | "
+                  f"self {c['self']} ({c['self']/total*100:.0f}%) | "
+                  f"timeout {c['timeout']} ({c['timeout']/total*100:.0f}%)")
         print(f"{'='*60}\n")
     
     def train(self):
@@ -389,8 +424,19 @@ class Trainer:
         print("="*60)
         print(f"Target episodes: {self.n_episodes}")
         print(f"Device: {self.agent.device}")
+        print(f"Reward shaping: {self.env.reward_shaping}"
+              + ("（按蛇长缩放：长蛇吃果奖励更高、死亡惩罚更轻）"
+                 if self.env.reward_shaping == 'scaled' else "（固定 +10 / -10）"))
+        print(f"Self-collision penalty: ×"
+              f"{getattr(self.env, 'self_death_factor', 1.0):g} "
+              f"（撞自己死得比撞墙更亏，让蛇学会区分两种死法）")
+        print(f"Step guidance: ±{STEP_GUIDANCE_COEFF:g}/len"
+              f"（每步靠近食物加分、远离扣分；蛇越长信号越弱，避免长蛇无脑直冲）")
         print(f"Epsilon decay: {self.agent.epsilon_decay}")
         print(f"Save interval: every {self.save_interval} episodes")
+        if self.start_episode > self.n_episodes:
+            print(f"⚠️ 起始局数 {self.start_episode} 已超过总局数 {self.n_episodes}"
+                  f" — 本轮将立即结束；如需继续训练请在设置中调大总局数")
         print("Stop anytime: close the game window, press Ctrl+C,")
         print("              or run 停止训练.bat — the model is auto-saved")
         print("="*60)
@@ -404,15 +450,21 @@ class Trainer:
                 
                 # Train one episode
                 reward, score = self.train_one_episode(episode)
-                
+
+                # Attribute the death cause before the next reset clears it
+                cause = getattr(self.env, 'last_death_cause', None)
+                if cause in self.death_counts:
+                    self.death_counts[cause] += 1
+
                 # Per-episode progress line
                 print(f"[Episode {episode:4d}/{self.n_episodes}] Score: {score:3d} | "
                       f"Reward: {reward:8.2f} | ε: {self.agent.epsilon:.3f}")
-                
+
                 # Record metrics
                 self.rewards.append(reward)
                 self.scores.append(score)
                 self.epsilon_values.append(self.agent.epsilon)
+                self._append_history(episode, score, reward, death=cause)
                 
                 # Snapshot the best model whenever the trailing-average
                 # score peaks (quietly — the folder is summarized at exit)
@@ -526,17 +578,79 @@ class Trainer:
         print(f"{'='*60}\n")
 
 
+def resolve_training_config(resume_from=None, fresh=False, grid_size=30):
+    """Map start options (CLI / GUI) to Trainer kwargs. The agent architecture
+    must match the checkpoint being loaded, so whenever weights are loaded
+    (explicit --resume-from, or auto-resume finding a checkpoint) the grid
+    size comes from the weights themselves; the requested grid size only
+    applies to fresh starts and checkpoint-less auto runs."""
+    if fresh:
+        return {'resume': False, 'model_path': None,
+                'obs_type': 'grid', 'grid_size': grid_size}
+    if resume_from:
+        obs_type, ckpt_grid = infer_model_arch(resume_from)
+        return {'resume': False, 'model_path': resume_from,
+                'obs_type': obs_type, 'grid_size': ckpt_grid}
+    found = find_latest_checkpoint()
+    if found:
+        obs_type, ckpt_grid = infer_model_arch(found[1])
+        return {'resume': True, 'model_path': None,
+                'obs_type': obs_type, 'grid_size': ckpt_grid}
+    return {'resume': True, 'model_path': None,
+            'obs_type': 'grid', 'grid_size': grid_size}
+
+
 def main():
     """Main entry point"""
+    parser = argparse.ArgumentParser(description='D3QN Snake training')
+    parser.add_argument('--resume-from', dest='resume_from', default=None,
+                        help='continue from a specific checkpoint '
+                             '(default: newest d3qn_snake_episode_*.pth in models/)')
+    parser.add_argument('--fresh', action='store_true',
+                        help='start from randomly initialized weights (no resume)')
+    parser.add_argument('--episodes', type=int, default=20000,
+                        help='total target episodes (default 20000)')
+    parser.add_argument('--grid-size', dest='grid_size', type=int, default=30,
+                        help='board size in cells for fresh/checkpoint-less runs '
+                             '(default 30; ignored when resuming — weights decide)')
+    parser.add_argument('--n-step', dest='n_step', type=int, default=3,
+                        help='n-step returns (default 3)')
+    parser.add_argument('--epsilon-decay', dest='epsilon_decay', type=float,
+                        default=0.999, help='per-episode epsilon decay (default 0.999)')
+    parser.add_argument('--reward-shaping', dest='reward_shaping',
+                        choices=['flat', 'scaled'], default='scaled',
+                        help="reward mode: 'scaled' = size-dependent food/death "
+                             "rewards (default), 'flat' = fixed +10/-10")
+    parser.add_argument('--self-death-factor', dest='self_death_factor',
+                        type=float, default=1.5,
+                        help='self-collision death penalty multiplier vs wall '
+                             '(default 1.5; 1.0 = identical penalties)')
+    parser.add_argument('--save-interval', dest='save_interval', type=int,
+                        default=100, help='save checkpoint every N episodes (default 100)')
+    args = parser.parse_args()
+    cfg = resolve_training_config(args.resume_from, args.fresh, args.grid_size)
+    if args.resume_from:
+        print(f"🎯 Starting from checkpoint: {args.resume_from} "
+              f"({cfg['obs_type']} {cfg['grid_size']}×{cfg['grid_size']})")
+    elif args.fresh:
+        print("🌱 Fresh start: random initialization, no resume")
+    if cfg['grid_size'] != args.grid_size:
+        print(f"ℹ️ 地图大小已按检查点调整为 {cfg['grid_size']}×{cfg['grid_size']}"
+              f"（请求 {args.grid_size}）— 网络结构必须与已训练权重匹配")
     trainer = Trainer(
-        n_episodes=20000,          # CNN from pixels needs more episodes
+        n_episodes=args.episodes,
         max_steps_per_episode=1000,
         log_interval=20,           # Print status every N episodes
-        save_interval=100,         # Save model every N episodes
+        save_interval=args.save_interval,
         render_training=False,     # Headless for speed; watch via scripts/demo.py
-        resume=True,               # Auto-continue from the latest checkpoint in models/
-        obs_type='grid',           # Full-board 3-channel CNN observation ⭐
-        n_step=3,                  # n-step returns: credit traps ~60 steps back ⭐
+        resume=cfg['resume'],
+        model_path=cfg['model_path'],
+        obs_type=cfg['obs_type'],  # matched to the resume source automatically
+        n_step=args.n_step,
+        epsilon_decay=args.epsilon_decay,
+        reward_shaping=args.reward_shaping,
+        self_death_factor=args.self_death_factor,
+        grid_size=cfg['grid_size'],
         preview_interval=0         # 0 = fully headless, no live window
     )
     trainer.train()

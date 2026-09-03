@@ -8,15 +8,38 @@ import numpy as np
 from gymnasium import spaces
 import pygame
 
+# Per-step directional guidance: a normal move that shortens the Manhattan
+# distance to the food earns +COEFF/len, one that lengthens it loses the same.
+# Dividing by snake length fades the signal as the snake grows: it bootstraps
+# food-seeking early, but stops pushing long snakes to beeline through their
+# own body (late game the scaled food/death rewards dominate instead).
+# COEFF=0.3 puts the signal at the ±0.1 living-cost magnitude once the snake
+# reaches length 3, and at ±0.01 by length 30.
+STEP_GUIDANCE_COEFF = 0.3
+
 
 class SnakeEnv(gym.Env):
     """Simple Snake game environment"""
     
-    def __init__(self, grid_size=20, observation_type='vision'):
+    def __init__(self, grid_size=20, observation_type='vision',
+                 reward_shaping='scaled', self_death_factor=1.5):
         super(SnakeEnv, self).__init__()
-        
+
         self.grid_size = grid_size
         self.observation_type = observation_type
+        # 'scaled': size-dependent shaping — the longer the snake, the bigger
+        #            the food reward and the milder the death penalty, so the
+        #            learning signal strengthens as the game progresses
+        # 'flat':   legacy fixed +10 food / -10 death (only via explicit opt-in)
+        self.reward_shaping = reward_shaping
+        # Self-collision deaths are penalized harder than wall deaths by this
+        # factor: in late game nearly every death is self-collision, and the
+        # distinct penalty forces Q(s,a) to represent WHICH fatal obstacle an
+        # action runs into (walls never move; the body does).
+        self.self_death_factor = float(self_death_factor)
+        # 'wall' | 'self' | 'timeout' of the last step; None if it survived.
+        # Lets trainers/loggers attribute deaths without re-deriving them.
+        self.last_death_cause = None
         self.close_requested = False  # set True when user closes the game window
         
         # Observation space: vision-based (local view around snake head)
@@ -56,6 +79,7 @@ class SnakeEnv(gym.Env):
         self.score = 0
         self.steps_without_food = 0
         self.max_steps = self.grid_size * self.grid_size
+        self.last_death_cause = None
         
         # Get initial observation
         obs = self._get_observation()
@@ -73,40 +97,84 @@ class SnakeEnv(gym.Env):
             self.steps_without_food += 1
         
         done = False
-        
+
         # Check collision with walls
-        if (not 0 <= new_head[0] < self.grid_size or 
-            not 0 <= new_head[1] < self.grid_size):
+        if (not 0 <= new_head[0] < self.grid_size or
+                not 0 <= new_head[1] < self.grid_size):
             done = True
-            reward = -10.0
-        
+            self.last_death_cause = 'wall'
+            reward = self._death_reward('wall')
+
         # Check collision with self
         elif new_head in self.snake[:-1]:
             done = True
-            reward = -10.0
-        
+            self.last_death_cause = 'self'
+            reward = self._death_reward('self')
+
         # Check timeout
         elif self.steps_without_food >= self.max_steps:
             done = True
+            self.last_death_cause = 'timeout'
             reward = -1.0
-        
+
         # Check if ate food
         elif new_head == self.food:
             self.snake.insert(0, new_head)
             self.score += 1
             self.food = self._place_food()
             self.steps_without_food = 0
-            reward = 10.0
+            self.last_death_cause = None
+            reward = self._food_reward()
         else:
             # Normal move
             self.snake.insert(0, new_head)
             self.snake.pop()
-            reward = -0.1  # Small penalty to encourage finding food faster
+            self.last_death_cause = None
+            # -0.1 living cost plus directional guidance toward the food
+            reward = -0.1 + self._step_guidance(head, new_head)
         
         obs = self._get_observation()
         truncated = False
         return obs, reward, done, truncated, {}
-    
+
+    def _death_reward(self, cause):
+        """Collision penalty, differentiated by cause. 'scaled': shrinks with
+        snake length — an early death costs almost -10, dying once the snake
+        spans the board edge costs only -1. Self-collision is further scaled
+        by self_death_factor so the two failure modes get distinct values."""
+        if self.reward_shaping != 'scaled':
+            base = -10.0
+        else:
+            frac = min(1.0, len(self.snake) / self.grid_size)
+            base = -(1.0 + 9.0 * (1.0 - frac))
+        if cause == 'self' and self.self_death_factor != 1.0:
+            return base * self.self_death_factor
+        return base
+
+    def _food_reward(self):
+        """Food reward. 'scaled': grows with snake length (~+1 early → +10
+        once the snake spans the board edge) so late-game food justifies
+        risky maneuvers. Called after the new head is inserted."""
+        if self.reward_shaping != 'scaled':
+            return 10.0
+        frac = min(1.0, len(self.snake) / self.grid_size)
+        return 1.0 + 9.0 * frac
+
+    def _step_guidance(self, old_head, new_head):
+        """Direction bonus for a non-eating move: positive when the move
+        shortened the Manhattan distance to the food, negative otherwise.
+        Magnitude is STEP_GUIDANCE_COEFF / snake_length, so the guidance
+        fades as the snake grows. The food never moves on a normal step,
+        so comparing distances to the same food cell is exact. With
+        4-directional moves the Manhattan distance always changes by ±1,
+        so every normal move gets a decisive nonzero signal."""
+        before = (abs(old_head[0] - self.food[0])
+                  + abs(old_head[1] - self.food[1]))
+        after = (abs(new_head[0] - self.food[0])
+                 + abs(new_head[1] - self.food[1]))
+        amount = STEP_GUIDANCE_COEFF / max(1, len(self.snake))
+        return amount if after < before else -amount
+
     def _place_food(self):
         """Place food at random position not occupied by snake"""
         while True:

@@ -3,13 +3,21 @@
 <cite>
 **本文引用的文件**
 - [README.md](file://README.md)
-- [d3qn_agent.py](file://d3qn_agent.py)
-- [d3qn_network.py](file://d3qn_network.py)
-- [snake_env.py](file://snake_env.py)
-- [train.py](file://train.py)
-- [demo.py](file://demo.py)
+- [d3qn_agent.py](file://src/agents/d3qn_agent.py)
+- [d3qn_network.py](file://src/models/d3qn_network.py)
+- [snake_env.py](file://src/envs/snake_env.py)
+- [train.py](file://scripts/train.py)
+- [demo.py](file://scripts/demo.py)
 - [requirements.txt](file://requirements.txt)
 </cite>
+
+## 更新摘要
+**所做更改**
+- 新增n步回报学习机制的实现说明
+- 添加优先经验回放缓冲区的详细解释
+- 增强梯度裁剪功能的描述
+- 更新文件路径以反映新的项目结构（移动到src/agents/d3qn_agent.py）
+- 完善训练流程和超参数调优指南
 
 ## 目录
 1. [简介](#简介)
@@ -24,7 +32,7 @@
 10. [附录：超参数调优与实践建议](#附录超参数调优与实践建议)
 
 ## 简介
-本项目实现了一个基于D3QN（Dueling Double Deep Q-Network）的强化学习智能体，用于在自定义的贪吃蛇环境中进行训练与测试。系统包含环境封装、D3QN网络、经验回放与目标网络机制、训练循环与可视化等完整模块，便于快速复现与扩展。
+本项目实现了一个基于D3QN（Dueling Double Deep Q-Network）的强化学习智能体，用于在自定义的贪吃蛇环境中进行训练与测试。系统包含环境封装、D3QN网络、经验回放与目标网络机制、训练循环与可视化等完整模块，便于快速复现与扩展。**最新更新**包括n步回报学习、优先经验回放和增强的梯度裁剪功能，显著提升了训练效率和稳定性。
 
 ## 项目结构
 - snake_env.py：自定义Gymnasium环境，提供状态观测、动作空间、奖励设计与渲染。
@@ -45,35 +53,37 @@ F["demo.py<br/>演示/测试"] --> B
 F --> D
 ```
 
-图表来源
-- [train.py:14-213](file://train.py#L14-L213)
-- [d3qn_agent.py:17-157](file://d3qn_agent.py#L17-L157)
-- [d3qn_network.py:10-90](file://d3qn_network.py#L10-L90)
-- [snake_env.py:12-101](file://snake_env.py#L12-L101)
+**图表来源**
+- [train.py:41-547](file://scripts/train.py#L41-L547)
+- [d3qn_agent.py:17-264](file://src/agents/d3qn_agent.py#L17-L264)
+- [d3qn_network.py:10-184](file://src/models/d3qn_network.py#L10-L184)
+- [snake_env.py:12-283](file://src/envs/snake_env.py#L12-L283)
 
-章节来源
-- [README.md:17-31](file://README.md#L17-L31)
-- [train.py:14-213](file://train.py#L14-L213)
-- [d3qn_agent.py:17-157](file://d3qn_agent.py#L17-L157)
-- [d3qn_network.py:10-90](file://d3qn_network.py#L10-L90)
-- [snake_env.py:12-101](file://snake_env.py#L12-L101)
+**章节来源**
+- [README.md:5-59](file://README.md#L5-L59)
+- [train.py:41-547](file://scripts/train.py#L41-L547)
+- [d3qn_agent.py:17-264](file://src/agents/d3qn_agent.py#L17-L264)
+- [d3qn_network.py:10-184](file://src/models/d3qn_network.py#L10-L184)
+- [snake_env.py:12-283](file://src/envs/snake_env.py#L12-L283)
 
 ## 核心组件
-- 环境 SnakeEnv：离散动作空间（上/下/左/右），9维视觉观测（8方向障碍距离+食物方向），奖励设计鼓励快速吃到食物并避免碰撞。
+- 环境 SnakeEnv：离散动作空间（上/下/左/右），支持多种观测类型（视觉、网格、状态），奖励设计鼓励快速吃到食物并避免碰撞。
 - 网络 D3QN：共享特征提取层后分叉为价值流V(s)和优势流A(s,a)，聚合得到Q(s,a)。
-- 智能体 D3QNAgent：维护策略网络与目标网络、经验回放缓冲区、ε衰减、Double DQN目标计算、梯度裁剪与优化器。
+- 智能体 D3QNAgent：维护策略网络与目标网络、**n步回报缓冲区**、**优先经验回放缓冲区**、ε衰减、Double DQN目标计算、**增强梯度裁剪**与优化器。
 - 训练器 Trainer：管理episode循环、指标统计、模型保存、收敛判断与可视化。
 
-章节来源
-- [snake_env.py:12-101](file://snake_env.py#L12-L101)
-- [d3qn_network.py:10-90](file://d3qn_network.py#L10-L90)
-- [d3qn_agent.py:17-157](file://d3qn_agent.py#L17-L157)
-- [train.py:14-213](file://train.py#L14-L213)
+**章节来源**
+- [snake_env.py:12-283](file://src/envs/snake_env.py#L12-L283)
+- [d3qn_network.py:10-184](file://src/models/d3qn_network.py#L10-L184)
+- [d3qn_agent.py:17-264](file://src/agents/d3qn_agent.py#L17-L264)
+- [train.py:41-547](file://scripts/train.py#L41-L547)
 
 ## 架构总览
-D3QN将Dueling与Double DQN结合：
+D3QN将Dueling与Double DQN结合，并引入n步回报学习和优先经验回放：
 - Dueling：分离V(s)与A(s,a)，通过Q(s,a)=V(s)+[A(s,a)-mean(A)]聚合，提升价值估计稳定性。
 - Double DQN：使用当前网络选择动作，目标网络评估该动作的价值，缓解过估计偏差。
+- **n步回报学习**：通过k步TD目标传播延迟死亡信用到致命决策点。
+- **优先经验回放**：根据TD误差优先级采样重要样本，加速学习。
 
 ```mermaid
 sequenceDiagram
@@ -87,23 +97,23 @@ T->>A : select_action(state)
 A-->>T : action
 T->>A : store_transition(...)
 T->>A : optimize_model()
-A->>M : 采样batch
+A->>M : n步回报组合
 A->>P : 前向(states) -> current_q
 A->>P : argmax(next_states) -> best_actions
 A->>G : 前向(next_states) -> next_q(best_actions)
-A->>A : 计算targets = r + γ·next_q
-A->>O : 反向传播+梯度裁剪+更新
+A->>A : 计算targets = r + γ^n·next_q
+A->>O : 反向传播+增强梯度裁剪+更新
 ```
 
-图表来源
-- [train.py:39-78](file://train.py#L39-L78)
-- [d3qn_agent.py:56-139](file://d3qn_agent.py#L56-L139)
-- [d3qn_network.py:58-90](file://d3qn_network.py#L58-L90)
+**图表来源**
+- [train.py:112-156](file://scripts/train.py#L112-L156)
+- [d3qn_agent.py:97-184](file://src/agents/d3qn_agent.py#L97-L184)
+- [d3qn_network.py:58-90](file://src/models/d3qn_network.py#L58-L90)
 
 ## 详细组件分析
 
 ### D3QN网络（Dueling架构）
-- 输入：9维向量，经一维卷积与批归一化提取特征，再进入全连接共享层。
+- 输入：9维向量或3通道网格图像，经卷积与批归一化提取特征，再进入全连接共享层。
 - 分支：
   - 价值流：输出V(s)标量。
   - 优势流：输出A(s,a)向量（长度=动作数）。
@@ -119,23 +129,28 @@ class D3QN {
 +save(path) void
 +load(path) void
 }
+class D3QNCNN {
++int num_actions
++forward(x) Tensor
+}
 ```
 
-图表来源
-- [d3qn_network.py:10-90](file://d3qn_network.py#L10-L90)
+**图表来源**
+- [d3qn_network.py:10-184](file://src/models/d3qn_network.py#L10-L184)
 
-章节来源
-- [d3qn_network.py:10-90](file://d3qn_network.py#L10-L90)
+**章节来源**
+- [d3qn_network.py:10-184](file://src/models/d3qn_network.py#L10-L184)
 
-### D3QNAgent（ε-贪婪、经验回放、目标网络、Double DQN）
+### D3QNAgent（ε-贪婪、n步回报、优先经验回放、目标网络、Double DQN）
 - ε-贪婪：训练时以概率ε随机探索，否则按当前策略最大化Q值选择动作；每步衰减ε至下限。
-- 经验回放：固定容量deque存储Transition，采样小批量进行训练。
+- **n步回报学习**：通过滑动窗口累积k步折扣回报，将延迟死亡信用传播回致命决策点。
+- **优先经验回放**：MemoryReplayBuffer类支持基于TD误差的优先级采样，提高学习效率。
 - 目标网络：周期性复制策略网络权重到目标网络，稳定TD目标。
 - Double DQN目标：
   - 用策略网络在当前next_state选择最优动作best_a。
   - 用目标网络评估该动作的Q值next_q。
-  - 目标：target = reward + γ·next_q（若未终止则乘(1-done)）。
-- 损失与优化：MSE损失，Adam优化器，梯度裁剪防止爆炸。
+  - 目标：target = reward + γ^n·next_q（考虑n步回报的折扣因子调整）。
+- **增强梯度裁剪**：使用clip_grad_norm_防止梯度爆炸，提高训练稳定性。
 
 ```mermaid
 flowchart TD
@@ -146,47 +161,49 @@ Sample --> ToTensor["转为张量"]
 ToTensor --> CurrQ["policy_net(states).gather(actions)"]
 ToTensor --> BestA["policy_net(next_states).argmax"]
 BestA --> NextQ["target_net(next_states).gather(BestA)"]
-NextQ --> Target["targets = r + γ*next_q*(1-done)"]
+NextQ --> Target["targets = r + γ^n*next_q*(1-done)"]
 Target --> Loss["MSE(current_q, targets)"]
 Loss --> Backward["zero_grad + backward"]
-Backward --> Clip["clip_grad_norm_(..., 10)"]
+Backward --> Clip["增强梯度裁剪 clip_grad_norm_(..., 10)"]
 Clip --> Step["optimizer.step()"]
 Step --> ReturnLoss["返回loss.item()"]
 ```
 
-图表来源
-- [d3qn_agent.py:91-139](file://d3qn_agent.py#L91-L139)
+**图表来源**
+- [d3qn_agent.py:134-184](file://src/agents/d3qn_agent.py#L134-L184)
 
-章节来源
-- [d3qn_agent.py:17-157](file://d3qn_agent.py#L17-L157)
+**章节来源**
+- [d3qn_agent.py:17-264](file://src/agents/d3qn_agent.py#L17-L264)
 
 ### 环境 SnakeEnv（观测、动作、奖励）
-- 观测：9维向量，8方向检测墙/身体障碍（负值表示距离），第9维编码食物相对方向。
+- 观测：支持三种模式：
+  - 视觉模式：10维向量，8方向检测墙/身体障碍（负值表示距离），第9-10维编码食物相对方向。
+  - 网格模式：3通道图像（蛇身/食物/头部），供CNN处理。
+  - 状态模式：完整网格状态。
 - 动作：离散4个方向。
 - 奖励：吃到食物+10，碰撞-10，超时-1，普通移动-0.1（鼓励更快找到食物）。
 - 渲染：Pygame可视化网格、蛇身、食物与分数。
 
-章节来源
-- [snake_env.py:12-101](file://snake_env.py#L12-L101)
-- [snake_env.py:111-158](file://snake_env.py#L111-L158)
-- [snake_env.py:160-208](file://snake_env.py#L160-L208)
+**章节来源**
+- [snake_env.py:12-283](file://src/envs/snake_env.py#L12-L283)
 
 ### 训练流程 Trainer
 - 每个episode：reset→循环选择动作→step环境→存储transition→优化模型→步进计数器与ε衰减。
+- **n步回报集成**：默认n_step=3，显著提升长程信用分配能力。
 - 指标：记录reward、score、loss、epsilon；计算滑动平均；绘制训练曲线。
 - 保存：定期保存模型checkpoint（含网络参数、优化器状态、epsilon、步数）。
 - 收敛：最近100回合平均奖励超过阈值自动停止。
 
-章节来源
-- [train.py:14-213](file://train.py#L14-L213)
+**章节来源**
+- [train.py:41-547](file://scripts/train.py#L41-L547)
 
 ### 演示与测试 Demo
 - 支持加载已训练模型进行无探索模式测试。
 - 随机游玩验证环境基本功能。
 - 不同网络结构对比（参数量与输出形状）。
 
-章节来源
-- [demo.py:11-158](file://demo.py#L11-L158)
+**章节来源**
+- [demo.py:18-165](file://scripts/demo.py#L18-L165)
 
 ## 依赖关系分析
 - 运行时依赖：torch、numpy、gymnasium、pygame、matplotlib。
@@ -209,63 +226,69 @@ D["demo.py"] --> A
 D --> E
 ```
 
-图表来源
+**图表来源**
 - [requirements.txt:1-15](file://requirements.txt#L1-L15)
-- [train.py:1-12](file://train.py#L1-L12)
-- [d3qn_agent.py:1-12](file://d3qn_agent.py#L1-L12)
-- [d3qn_network.py:1-8](file://d3qn_network.py#L1-L8)
-- [snake_env.py:1-10](file://snake_env.py#L1-L10)
-- [demo.py:1-9](file://demo.py#L1-L9)
+- [train.py:1-22](file://scripts/train.py#L1-L22)
+- [d3qn_agent.py:1-12](file://src/agents/d3qn_agent.py#L1-L12)
+- [d3qn_network.py:1-8](file://src/models/d3qn_network.py#L1-L8)
+- [snake_env.py:1-10](file://src/envs/snake_env.py#L1-L10)
+- [demo.py:1-16](file://scripts/demo.py#L1-L16)
 
-章节来源
+**章节来源**
 - [requirements.txt:1-15](file://requirements.txt#L1-L15)
-- [train.py:1-12](file://train.py#L1-L12)
-- [d3qn_agent.py:1-12](file://d3qn_agent.py#L1-L12)
-- [d3qn_network.py:1-8](file://d3qn_network.py#L1-L8)
-- [snake_env.py:1-10](file://snake_env.py#L1-L10)
-- [demo.py:1-9](file://demo.py#L1-L9)
+- [train.py:1-22](file://scripts/train.py#L1-L22)
+- [d3qn_agent.py:1-12](file://src/agents/d3qn_agent.py#L1-L12)
+- [d3qn_network.py:1-8](file://src/models/d3qn_network.py#L1-L8)
+- [snake_env.py:1-10](file://src/envs/snake_env.py#L1-L10)
+- [demo.py:1-16](file://scripts/demo.py#L1-L16)
 
 ## 性能与收敛性
 - 收敛性分析
   - Double DQN通过解耦动作选择与评估降低Q值过估计，提高稳定性。
   - Dueling将状态价值与动作优势分离，有助于更稳定的价值估计。
+  - **n步回报学习**通过多步TD目标改善长程信用分配，特别适用于复杂任务。
+  - **优先经验回放**聚焦高TD误差样本，加速关键经验的学习。
   - 目标网络周期性更新减少TD目标的非平稳性。
   - 经验回放打破样本相关性，提升数据利用效率。
 - 性能优化建议
   - 增大batch_size可平滑梯度但增加显存占用；根据GPU能力调整。
   - 适当减小grid_size或关闭渲染以提升训练速度。
   - 使用GPU加速（代码自动检测设备）。
-  - 梯度裁剪防止不稳定更新。
+  - **增强梯度裁剪**防止不稳定更新，提高训练鲁棒性。
   - 观察ε衰减曲线，确保足够探索时间。
+  - **调整n_step参数**平衡短期反馈与长期信用分配。
 
-章节来源
-- [d3qn_agent.py:27-55](file://d3qn_agent.py#L27-L55)
-- [d3qn_agent.py:91-139](file://d3qn_agent.py#L91-L139)
-- [train.py:158-213](file://train.py#L158-L213)
-- [README.md:169-184](file://README.md#L169-L184)
+**章节来源**
+- [d3qn_agent.py:29-184](file://src/agents/d3qn_agent.py#L29-L184)
+- [train.py:41-547](file://scripts/train.py#L41-L547)
+- [README.md:121-156](file://README.md#L121-L156)
 
 ## 故障排查指南
 - CUDA显存不足：减小batch_size或关闭渲染。
 - 训练收敛慢：检查是否使用GPU、增大batch_size、缩小网格尺寸、确认ε衰减不过快。
 - 智能体不学习：确认渲染未拖慢训练、检查ε衰减设置、验证环境奖励信号合理。
 - 游戏无法启动：安装pygame，清理残留窗口进程。
+- **n步回报问题**：调整n_step参数，过小可能无法有效传播信用，过大可能导致目标不稳定。
+- **优先经验回放**：如遇到采样不均，可调整优先级缩放参数。
 
-章节来源
-- [README.md:232-249](file://README.md#L232-L249)
+**章节来源**
+- [README.md:218-263](file://README.md#L218-L263)
 
 ## 结论
-本实现将Dueling与Double DQN有机结合，配合经验回放与目标网络，在贪吃蛇任务中实现了稳定高效的训练流程。模块化设计便于扩展（如优先经验回放、多智能体、课程学习等），并提供完整的训练、可视化与测试工具链。
+本实现将Dueling与Double DQN有机结合，并通过**n步回报学习**和**优先经验回放**显著提升了训练效率和稳定性。配合目标网络和增强的梯度裁剪，在贪吃蛇任务中实现了稳定高效的训练流程。模块化设计便于扩展（如多智能体、课程学习等），并提供完整的训练、可视化与测试工具链。
 
 ## 附录：超参数调优与实践建议
 - 学习率（lr）：默认1e-4，Adam对lr较鲁棒；若训练震荡可尝试降低至5e-5或提高至2e-4。
 - 折扣因子（gamma）：默认0.99，强调长期回报；对于短视任务可适当降低。
+- **n步回报（n_step）**：默认3，平衡短期反馈与长期信用分配；复杂任务可增加到5-10。
 - 批量大小（batch_size）：默认64，增大可稳定梯度但需更多显存；过小可能导致噪声大。
 - 经验池容量（buffer_size）：默认100000，容量越大历史经验越多，但采样可能不够新鲜；可按任务复杂度调整。
 - 目标网络更新频率（target_update）：默认1000步；更新太频繁会不稳定，太稀疏会降低目标质量。
 - ε调度：
   - epsilon_start=1.0，epsilon_end=0.05，epsilon_decay=0.995；可根据任务难度调整衰减速度与下限。
-- 其他：
-  - 梯度裁剪阈值：默认10，防止梯度爆炸。
+- **其他增强功能**：
+  - 增强梯度裁剪阈值：默认10，防止梯度爆炸。
+  - 优先经验回放：可显著提高学习效率，特别是对于稀疏奖励任务。
   - 网络结构：可增加隐藏层维度或通道数以增强表达能力，但需权衡训练成本。
 
 实践建议
@@ -273,10 +296,10 @@ D --> E
 - 初期关闭渲染，待策略稳定后再开启可视化调试。
 - 监控训练曲线（奖励、分数、损失、ε），出现平台期时可尝试调整上述超参数。
 - 定期保存checkpoint，便于回溯最佳模型。
+- **针对复杂任务**：优先考虑n步回报学习和优先经验回放的组合使用。
 
-章节来源
-- [d3qn_agent.py:27-55](file://d3qn_agent.py#L27-L55)
-- [d3qn_agent.py:91-139](file://d3qn_agent.py#L91-L139)
-- [train.py:158-213](file://train.py#L158-L213)
-- [README.md:76-99](file://README.md#L76-L99)
-- [README.md:169-184](file://README.md#L169-L184)
+**章节来源**
+- [d3qn_agent.py:29-184](file://src/agents/d3qn_agent.py#L29-L184)
+- [train.py:41-547](file://scripts/train.py#L41-L547)
+- [README.md:191-216](file://README.md#L191-L216)
+- [README.md:218-263](file://README.md#L218-L263)

@@ -1,0 +1,61 @@
+{
+  "run_id": "20260903_233700",
+  "exported_at": "2026-09-03 23:37:01",
+  "export_status": "final",
+  "stop_reason": "STOP file detected",
+  "network": "D3QNCNN",
+  "network_params": 1171589,
+  "hyperparams": {
+    "obs_type": "grid",
+    "grid_size": 30,
+    "input_dim": 10,
+    "num_actions": 4,
+    "n_step": 3,
+    "gamma": 0.99,
+    "lr": 0.0001,
+    "optimizer": "Adam",
+    "loss": "MSELoss",
+    "grad_clip": 10,
+    "batch_size": 128,
+    "buffer_size": 50000,
+    "target_update_steps": 1000,
+    "epsilon_start": 1.0,
+    "epsilon_end": 0.05,
+    "epsilon_decay": 0.999,
+    "epsilon_at_export": 0.2995103162243704,
+    "agent_steps": 218650
+  },
+  "run": {
+    "episodes_this_run": 3,
+    "start_episode": 802,
+    "end_episode": 804,
+    "resumed_from": "D:\\zm\\D3QN\\models\\d3qn_snake_episode_801.pth",
+    "total_env_steps": 106
+  },
+  "metrics": {
+    "max_score": 0,
+    "avg_score_last_100": 0.0,
+    "avg_reward_last_100": -13.43,
+    "final_epsilon": 0.2995103162243704,
+    "losses_recorded": 0
+  },
+  "best": {
+    "criterion": "avg_score_last_100",
+    "scope": "this training run",
+    "min_episodes_required": 20,
+    "episode": null,
+    "avg_score": null,
+    "fallback_to_last": true
+  },
+  "last": {
+    "episode": 804,
+    "saved_by": "auto-save every save_interval episodes + exit-save"
+  },
+  "files": {
+    "best_model": "best_model.pth",
+    "last_model": "last_model.pth",
+    "params": "params.json",
+    "plot": "training_metrics.png",
+    "history": "history.jsonl"
+  }
+}

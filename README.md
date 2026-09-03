@@ -143,10 +143,10 @@ The agent learns to play Snake by:
 
 2. **Actions**: [Up, Down, Left, Right]
 
-3. **Rewards**:
-   - +10.0: Eat food
-   - -10.0: Collision (wall or self)
-   - -0.1: Per-step penalty (encourages faster solutions)
+3. **Rewards** (default `scaled` mode, 按蛇长缩放):
+   - Eat food: `+1 → +10`，蛇越长奖励越高
+   - Collision: `-10 → -1`，蛇越长惩罚越轻；撞自己再乘 1.5 倍（区分两种死法）
+   - Normal move: `-0.1` per-step cost **± `0.3/蛇长`**（靠近食物加分、远离扣分，蛇越长引导越弱）
    - -1.0: Timeout penalty
 
 After ~5000 episodes, the agent typically achieves:

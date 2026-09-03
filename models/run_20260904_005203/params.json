@@ -1,0 +1,69 @@
+{
+  "run_id": "20260904_005203",
+  "exported_at": "2026-09-04 02:00:40",
+  "export_status": "auto_save",
+  "stop_reason": null,
+  "network": "D3QNCNN",
+  "network_params": 1171589,
+  "hyperparams": {
+    "obs_type": "grid",
+    "grid_size": 30,
+    "input_dim": 10,
+    "reward_shaping": "scaled",
+    "self_death_factor": 1.5,
+    "step_guidance_coeff": 0.3,
+    "num_actions": 4,
+    "n_step": 3,
+    "gamma": 0.99,
+    "lr": 0.0001,
+    "optimizer": "Adam",
+    "loss": "MSELoss",
+    "grad_clip": 10,
+    "batch_size": 128,
+    "buffer_size": 50000,
+    "target_update_steps": 1000,
+    "epsilon_start": 1.0,
+    "epsilon_end": 0.05,
+    "epsilon_decay": 0.999,
+    "epsilon_at_export": 0.27235458681947705,
+    "agent_steps": 413292
+  },
+  "run": {
+    "episodes_this_run": 1300,
+    "start_episode": 1,
+    "end_episode": 1300,
+    "resumed_from": null,
+    "total_env_steps": 413292
+  },
+  "metrics": {
+    "max_score": 2,
+    "avg_score_last_100": 0.34,
+    "avg_reward_last_100": -49.9,
+    "final_epsilon": 0.27235458681947705,
+    "losses_recorded": 413162,
+    "deaths": {
+      "wall": 1138,
+      "self": 45,
+      "timeout": 88
+    }
+  },
+  "best": {
+    "criterion": "avg_score_last_100",
+    "scope": "this training run",
+    "min_episodes_required": 20,
+    "episode": 1212,
+    "avg_score": 0.42,
+    "fallback_to_last": false
+  },
+  "last": {
+    "episode": 1300,
+    "saved_by": "auto-save every save_interval episodes + exit-save"
+  },
+  "files": {
+    "best_model": "best_model.pth",
+    "last_model": "last_model.pth",
+    "params": "params.json",
+    "plot": "training_metrics.png",
+    "history": "history.jsonl"
+  }
+}
