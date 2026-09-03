@@ -111,9 +111,9 @@ def compare_architectures():
     import torch
     
     architectures = [
-        ("Simple MLP", {'input_dim': 9, 'num_actions': 4}),
-        ("Dueling CNN", {'input_dim': 9, 'num_actions': 4}),
-        ("Larger Dueling", {'input_dim': 9, 'num_actions': 4, 'fc1_dim': 256, 'fc2_dim': 256})
+        ("Simple MLP", {'input_dim': 10, 'num_actions': 4}),
+        ("Dueling CNN", {'input_dim': 10, 'num_actions': 4}),
+        ("Larger Dueling", {'input_dim': 10, 'num_actions': 4, 'fc1_dim': 256, 'fc2_dim': 256})
     ]
     
     for name, kwargs in architectures:
@@ -121,7 +121,7 @@ def compare_architectures():
         params = sum(p.numel() for p in net.parameters())
         
         # Forward pass test
-        x = torch.randn(32, 9)
+        x = torch.randn(32, 10)
         with torch.no_grad():
             out = net(x)
         

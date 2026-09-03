@@ -24,7 +24,7 @@ class D3QNAgent:
     - Experience replay: stores past experiences for training
     """
     
-    def __init__(self, input_dim=9, num_actions=4, device='cuda' if torch.cuda.is_available() else 'cpu'):
+    def __init__(self, input_dim=10, num_actions=4, device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.device = device
         
         # Hyperparameters
@@ -80,13 +80,16 @@ class D3QNAgent:
         self.memory.append(transition)
     
     def step(self):
-        """Update epsilon decay"""
-        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
+        """Per-step bookkeeping: step counter and periodic target network sync"""
         self.steps += 1
         
         # Update target network periodically
         if self.steps % self.target_update == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
+    
+    def end_episode(self):
+        """Decay epsilon once per episode (0.995^100 ≈ 0.61, per README schedule)"""
+        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
     
     def optimize_model(self):
         """
@@ -103,12 +106,13 @@ class D3QNAgent:
         transitions = random.sample(self.memory, self.batch_size)
         batch = Transition(*zip(*transitions))
         
-        # Prepare tensors
+        # Prepare tensors (rewards/dones as [B,1] columns to avoid
+        # broadcasting with next_q's [B,1] into a wrong [B,B] target)
         states = torch.FloatTensor(np.array(batch.state)).to(self.device)
         actions = torch.LongTensor(batch.action).to(self.device)
-        rewards = torch.FloatTensor(batch.reward).to(self.device)
+        rewards = torch.FloatTensor(np.array(batch.reward)).unsqueeze(1).to(self.device)
         next_states = torch.FloatTensor(np.array(batch.next_state)).to(self.device)
-        dones = torch.FloatTensor(batch.done).to(self.device)
+        dones = torch.FloatTensor(np.array(batch.done)).unsqueeze(1).to(self.device)
         
         # Current Q-values
         current_q = self.policy_net(states).gather(1, actions.unsqueeze(1))
@@ -149,10 +153,11 @@ class D3QNAgent:
     
     def load(self, path):
         """Load model checkpoint"""
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=self.device, weights_only=False)
         self.epsilon = checkpoint['epsilon']
         self.steps = checkpoint['steps']
         self.policy_net.load_state_dict(checkpoint['model_dict'])
+        self.target_net.load_state_dict(checkpoint['model_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_dict'])
 
 
@@ -190,17 +195,17 @@ def test_agent():
     print("Testing D3QN Agent...")
     
     # Create agent
-    agent = D3QNAgent(input_dim=9, num_actions=4)
+    agent = D3QNAgent(input_dim=10, num_actions=4)
     print(f"Agent created on device: {agent.device}")
     print(f"Policy net parameters: {sum(p.numel() for p in agent.policy_net.parameters()):,}")
     
     # Test action selection
-    state = np.random.randn(9).astype(np.float32)
+    state = np.random.randn(10).astype(np.float32)
     action = agent.select_action(state, train=True)
     print(f"\nSelected action: {action}")
     
     # Test storing transitions
-    next_state = np.random.randn(9).astype(np.float32)
+    next_state = np.random.randn(10).astype(np.float32)
     agent.store_transition(state, action, 1.0, next_state, False)
     print(f"\nStored transition. Buffer size: {len(agent.memory)}")
     

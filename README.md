@@ -32,7 +32,36 @@ d:\zm\D3QN/
 
 ## 🚀 Quick Start
 
-### 1. Install Dependencies
+### 1. Setup Virtual Environment (If not exists)
+
+First, ensure the virtual environment is created using `uv`:
+
+```bash
+# Check if .venv exists
+if (-not (Test-Path ".venv")) {
+    uv venv --python 3.14
+}
+```
+
+**✅ Current Status**: Virtual environment **already created** at `.venv/`
+
+---
+
+### 2. Install Dependencies
+
+```bash
+# If using uv (recommended)
+uv pip install torch numpy gymnasium matplotlib
+
+# For pygame on Python 3.14, see startup guide if installation fails
+uv pip install pygame  # May need manual installation
+```
+
+**⚠️ Note**: Pygame might have compatibility issues with Python 3.14. See `启动指南.md` for solutions.
+
+---
+
+### 3. Start Training
 
 ```bash
 pip install -r requirements.txt
@@ -53,7 +82,41 @@ The training will:
 - Generate training curves in `training_curves.png`
 - Stop automatically if converged (avg reward > 50 over last 100 episodes)
 
-### 3. Test Trained Agent
+### 3. Start Training
+
+**Using PowerShell Script (Recommended) ⭐:**
+
+```powershell
+# Auto-checks .venv and starts training
+.\start.ps1 -Train
+```
+
+**Or using Batch File:**
+
+```batch
+REM Windows CMD compatible
+.start_training.bat
+```
+
+**Or directly with Python:**
+
+```bash
+# Make sure you're in the project directory
+cd d:\zm\D3QN
+
+# Run using virtual environment python
+.venv\Scripts\python.exe train.py
+```
+
+The training will:
+- Run for 5000 episodes by default
+- Show progress every 10 episodes
+- Save best model every 50 episodes to `models/`
+- Generate training curves in `training_curves.png`
+- Stop automatically if converged (avg reward > 50 over last 100 episodes)
+- **Display real-time visualization of the snake game** ⭐
+
+### 4. Test Trained Agent
 
 After training completes:
 
@@ -103,9 +166,9 @@ self.target_update = 1000    # Target network update frequency
 ### Environment
 
 **Observation Space** (Vision-based):
-- 9-dimensional vector encoding:
+- 10-dimensional vector encoding:
   - 8 directions: proximity to walls/snake body (negative values)
-  - 1 dimension: food direction relative to snake head (+/- 1)
+  - 2 dimensions: food direction relative to snake head (obs[8]: up/down, obs[9]: left/right, each ±1 or 0)
 
 **Action Space**:
 - Discrete: [Up, Down, Left, Right]

@@ -17,7 +17,7 @@ class D3QN(nn.Module):
     - Aggregation layer combining V(s) and A(s,a) to get Q(s,a)
     """
     
-    def __init__(self, input_dim=9, num_actions=4, fc1_dim=128, fc2_dim=128):
+    def __init__(self, input_dim=10, num_actions=4, fc1_dim=128, fc2_dim=128):
         super(D3QN, self).__init__()
         
         self.input_dim = input_dim
@@ -31,7 +31,7 @@ class D3QN(nn.Module):
         self.bn2 = nn.BatchNorm1d(32)
         
         # Flatten size calculation
-        conv_out_size = 32 * 9  # 32 channels, 9 features
+        conv_out_size = 32 * input_dim  # 32 channels, input_dim features
         
         # Shared layers
         self.fc_shared = nn.Sequential(
@@ -110,13 +110,13 @@ def test_d3qn():
     print("Testing D3QN Network...")
     
     # Create network
-    net = D3QN(input_dim=9, num_actions=4)
+    net = D3QN(input_dim=10, num_actions=4)
     print(f"Network created successfully!")
     print(f"Total parameters: {sum(p.numel() for p in net.parameters()):,}")
     
     # Test forward pass
     batch_size = 32
-    x = torch.randn(batch_size, 9)
+    x = torch.randn(batch_size, 10)
     
     with torch.no_grad():
         output = net(x)
@@ -126,7 +126,7 @@ def test_d3qn():
     
     # Save/Load test
     net.save('/tmp/d3qn_test.pth')
-    new_net = D3QN(input_dim=9, num_actions=4)
+    new_net = D3QN(input_dim=10, num_actions=4)
     new_net.load('/tmp/d3qn_test.pth')
     print("\n✓ Save/Load test passed!")
     

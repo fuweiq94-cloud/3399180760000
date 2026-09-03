@@ -16,11 +16,12 @@ class SnakeEnv(gym.Env):
         super(SnakeEnv, self).__init__()
         
         self.grid_size = grid_size
+        self.close_requested = False  # set True when user closes the game window
         
         # Observation space: vision-based (local view around snake head)
         if observation_type == 'vision':
             self.observation_space = spaces.Box(
-                low=-1, high=2, shape=(9,), dtype=np.float32
+                low=-1, high=2, shape=(10,), dtype=np.float32
             )
         elif observation_type == 'state':
             self.observation_space = spaces.Box(
@@ -109,9 +110,9 @@ class SnakeEnv(gym.Env):
                 return pos
     
     def _get_observation(self):
-        """Get vision-based observation (8 directions + distance to food)"""
+        """Get vision-based observation (8 directions + 2-axis food direction)"""
         head = self.snake[0]
-        obs = np.zeros(9, dtype=np.float32)
+        obs = np.zeros(10, dtype=np.float32)
         
         # Check 8 directions
         directions_8 = [
@@ -154,7 +155,12 @@ class SnakeEnv(gym.Env):
             obs[8] -= 1  # Food is above
         elif food_x > head_x:
             obs[8] += 1  # Food is below
-        
+
+        if food_y < head_y:
+            obs[9] -= 1  # Food is to the left
+        elif food_y > head_y:
+            obs[9] += 1  # Food is to the right
+
         return obs
     
     def render(self, mode='human'):
@@ -167,7 +173,10 @@ class SnakeEnv(gym.Env):
                 self.clock = pygame.time.Clock()
                 self.font = pygame.font.Font(None, 36)
             
-            # Clear screen
+            # Process OS events; closing the window requests a graceful training stop
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.close_requested = True
             self.screen.fill((0, 0, 0))
             
             # Draw grid
@@ -199,8 +208,17 @@ class SnakeEnv(gym.Env):
             steps_text = self.font.render(f'Steps: {self.steps_without_food}', True, (255, 255, 255))
             self.screen.blit(steps_text, (10, 50))
             
+            # Draw current episode number (kept up to date by the trainer)
+            episode_text = self.font.render(f'Episode: {getattr(self, "current_episode", 1)}', True, (255, 255, 255))
+            self.screen.blit(episode_text, (10, 90))
+
+            # Draw current exploration rate (kept up to date by the trainer)
+            epsilon_text = self.font.render(f'Epsilon: {getattr(self, "current_epsilon", 1.0):.3f}', True, (255, 255, 0))
+            self.screen.blit(epsilon_text, (10, 130))
+            
             pygame.display.flip()
-            self.clock.tick(20)  # 20 FPS
+            # FPS can be adjusted at runtime (e.g. by the GUI speed slider)
+            self.clock.tick(getattr(self, 'render_fps', 20))
     
     def close(self):
         """Close pygame window"""

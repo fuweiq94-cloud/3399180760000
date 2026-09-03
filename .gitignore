@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+.venv/
+
+# 非本项目代码
+skills/
+
+# 运行时临时文件
+STOP
