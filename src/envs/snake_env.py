@@ -16,12 +16,18 @@ class SnakeEnv(gym.Env):
         super(SnakeEnv, self).__init__()
         
         self.grid_size = grid_size
+        self.observation_type = observation_type
         self.close_requested = False  # set True when user closes the game window
         
         # Observation space: vision-based (local view around snake head)
         if observation_type == 'vision':
             self.observation_space = spaces.Box(
                 low=-1, high=2, shape=(10,), dtype=np.float32
+            )
+        elif observation_type == 'grid':
+            # Full-board 3-channel image for CNN: body / food / head
+            self.observation_space = spaces.Box(
+                low=0, high=1, shape=(3, grid_size, grid_size), dtype=np.float32
             )
         elif observation_type == 'state':
             self.observation_space = spaces.Box(
@@ -110,6 +116,24 @@ class SnakeEnv(gym.Env):
                 return pos
     
     def _get_observation(self):
+        """Dispatch to the configured observation encoder"""
+        if self.observation_type == 'grid':
+            return self._get_grid_observation()
+        return self._get_vision_observation()
+
+    def _get_grid_observation(self):
+        """Full-board 3-channel image: ch0 snake body (head excluded),
+        ch1 food, ch2 head. Lets a CNN see the whole body geometry."""
+        obs = np.zeros((3, self.grid_size, self.grid_size), dtype=np.float32)
+        head = self.snake[0]
+        for cell in self.snake:
+            obs[0, cell[0], cell[1]] = 1.0
+        obs[0, head[0], head[1]] = 0.0  # head lives in its own channel
+        obs[1, self.food[0], self.food[1]] = 1.0
+        obs[2, head[0], head[1]] = 1.0
+        return obs
+
+    def _get_vision_observation(self):
         """Get vision-based observation (8 directions + 2-axis food direction)"""
         head = self.snake[0]
         obs = np.zeros(10, dtype=np.float32)
@@ -125,7 +149,9 @@ class SnakeEnv(gym.Env):
             obstacle_found = False
             dist = 0
             
-            for step in range(1, self.grid_size):
+            # +1: a wall can sit exactly grid_size steps away (head on the
+            # opposite border) and must still be detected
+            for step in range(1, self.grid_size + 1):
                 check_pos = (head[0] + dx * step, head[1] + dy * step)
                 
                 # Wall detection

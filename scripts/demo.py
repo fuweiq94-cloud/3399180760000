@@ -4,8 +4,15 @@ Combines all components for testing the trained agent
 """
 
 import numpy as np
-from snake_env import SnakeEnv
-from d3qn_agent import D3QNAgent
+import sys
+from pathlib import Path
+
+# Add src directory to path for imports
+src_path = Path(__file__).parent.parent / 'src'
+sys.path.insert(0, str(src_path))
+
+from envs import SnakeEnv
+from agents import D3QNAgent
 
 
 def test_trained_agent():
@@ -18,7 +25,7 @@ def test_trained_agent():
     # Load or create agent
     try:
         agent = D3QNAgent()
-        checkpoint_path = 'models/d3qn_snake_episode_5000.pth'
+        checkpoint_path = '../models/d3qn_snake_episode_5000.pth'
         agent.load(checkpoint_path)
         print(f"✓ Loaded trained model from {checkpoint_path}")
     except Exception as e:

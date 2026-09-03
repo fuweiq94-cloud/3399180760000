@@ -17,7 +17,10 @@ REM Activate virtual environment and run training
 echo Starting D3QN Snake AI Training...
 echo.
 
-call .venv\Scripts\activate.bat
+# Navigate to src directory
+cd /d "%~dp0..\src"
+
+call ..\.venv\Scripts\activate.bat
 python train.py
 
 if %errorlevel% neq 0 (

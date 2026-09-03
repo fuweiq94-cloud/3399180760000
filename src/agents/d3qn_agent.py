@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from collections import deque, namedtuple
-from d3qn_network import D3QN
+from models import D3QN, D3QNCNN
 import random
 
 
@@ -22,24 +22,44 @@ class D3QNAgent:
     - Main network (online): selects actions and computes Q-values
     - Target network: provides stable target values for training
     - Experience replay: stores past experiences for training
+    - Optional n-step returns: bootstrap targets look n steps ahead, which
+      propagates delayed death-by-self-trap credit back to the fatal decision
     """
     
-    def __init__(self, input_dim=10, num_actions=4, device='cuda' if torch.cuda.is_available() else 'cpu'):
+    def __init__(self, input_dim=10, num_actions=4, obs_type='vision',
+                 n_step=1, buffer_size=100000, batch_size=64, grid_size=20,
+                 epsilon_decay=0.995,
+                 device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.device = device
-        
+        self.obs_type = obs_type
+        self.input_dim = input_dim
+        self.grid_size = grid_size
+
         # Hyperparameters
         self.gamma = 0.99          # Discount factor
         self.epsilon_start = 1.0   # Initial exploration rate
         self.epsilon_end = 0.05    # Final exploration rate
-        self.epsilon_decay = 0.995 # Decay rate per episode
+        # 0.995/episode fits the fast-learning feature model; pixel CNNs
+        # need a longer exploration tail (e.g. 0.999 ≈ floor at ~3000 eps)
+        self.epsilon_decay = epsilon_decay
         
-        self.batch_size = 64
-        self.buffer_size = 100000  # Maximum replay buffer size
+        self.batch_size = batch_size
+        self.buffer_size = buffer_size
         self.target_update = 1000  # Update target network every N steps
         
+        # n-step returns (1 = classic one-step TD). Plain deque: the oldest
+        # full window is emitted on the (n+1)-th push, so episode-end flush
+        # never re-emits an already composed transition.
+        self.n_step = n_step
+        self._nstep_buf = deque()
+        
         # Networks
-        self.policy_net = D3QN(input_dim=input_dim, num_actions=num_actions).to(device)
-        self.target_net = D3QN(input_dim=input_dim, num_actions=num_actions).to(device)
+        if obs_type == 'grid':
+            net_fn = lambda: D3QNCNN(num_actions=num_actions, grid_size=grid_size)
+        else:
+            net_fn = lambda: D3QN(input_dim=input_dim, num_actions=num_actions)
+        self.policy_net = net_fn().to(device)
+        self.target_net = net_fn().to(device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         
         # Optimizer
@@ -75,9 +95,28 @@ class D3QNAgent:
                 return q_values.argmax().item()
     
     def store_transition(self, state, action, reward, next_state, done):
-        """Store experience in replay buffer"""
-        transition = Transition(state, action, reward, next_state, done)
-        self.memory.append(transition)
+        """Store experience in replay buffer (composed into n-step returns)"""
+        if self.n_step <= 1:
+            self.memory.append(Transition(state, action, reward, next_state, done))
+            return
+        self._nstep_buf.append((state, action, reward, next_state, done))
+        if len(self._nstep_buf) > self.n_step:
+            self.memory.append(self._compose_nstep(self.n_step))
+            self._nstep_buf.popleft()
+
+    def _compose_nstep(self, k):
+        """k-step return from the oldest k buffered transitions:
+        R = r_t + γ r_{t+1} + ... + γ^{k-1} r_{t+k-1}, bootstrap state s_{t+k}"""
+        R = sum((self.gamma ** i) * self._nstep_buf[i][2] for i in range(k))
+        s0, a0 = self._nstep_buf[0][0], self._nstep_buf[0][1]
+        next_state, done = self._nstep_buf[k - 1][3], self._nstep_buf[k - 1][4]
+        return Transition(s0, a0, R, next_state, done)
+
+    def _flush_nstep(self):
+        """At episode end, emit the remaining k<n partial transitions"""
+        while self._nstep_buf:
+            self.memory.append(self._compose_nstep(len(self._nstep_buf)))
+            self._nstep_buf.popleft()
     
     def step(self):
         """Per-step bookkeeping: step counter and periodic target network sync"""
@@ -88,7 +127,8 @@ class D3QNAgent:
             self.target_net.load_state_dict(self.policy_net.state_dict())
     
     def end_episode(self):
-        """Decay epsilon once per episode (0.995^100 ≈ 0.61, per README schedule)"""
+        """Decay epsilon once per episode and flush partial n-step transitions"""
+        self._flush_nstep()
         self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
     
     def optimize_model(self):
@@ -125,8 +165,9 @@ class D3QNAgent:
         with torch.no_grad():
             next_q = self.target_net(next_states).gather(1, best_actions.unsqueeze(1))
             
-        # Calculate targets
-        targets = rewards + (1 - dones) * self.gamma * next_q
+        # Calculate targets. Stored rewards are already n-step discounted sums,
+        # so the bootstrap uses gamma^n (gamma^1 = classic one-step TD)
+        targets = rewards + (1 - dones) * (self.gamma ** self.n_step) * next_q
         
         # Compute loss
         loss = self.criterion(current_q, targets)

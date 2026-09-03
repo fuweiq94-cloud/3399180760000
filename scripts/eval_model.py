@@ -17,6 +17,15 @@ import glob
 import os
 import random
 import re
+import sys
+from pathlib import Path
+
+# Add src directory to path for imports
+src_path = Path(__file__).parent.parent / 'src'
+sys.path.insert(0, str(src_path))
+
+from envs import SnakeEnv
+from agents import D3QNAgent
 
 import numpy as np
 

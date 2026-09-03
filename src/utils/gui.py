@@ -16,8 +16,8 @@ import threading
 import tkinter as tk
 from tkinter import messagebox, scrolledtext, ttk
 
-from snake_env import SnakeEnv
-from d3qn_agent import D3QNAgent
+from envs import SnakeEnv
+from agents import D3QNAgent
 
 DEFAULT_MODEL = os.path.join('models', 'd3qn_snake_episode_4800.pth')
 

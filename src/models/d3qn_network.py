@@ -105,6 +105,52 @@ class D3QN(nn.Module):
         self.load_state_dict(checkpoint['model_dict'])
 
 
+class D3QNCNN(nn.Module):
+    """Dueling CNN for full-board (3, H, W) grid observations.
+
+    Two stride-2 convs downsample 20x20 -> 5x5, then a shared FC feeds the
+    V(s)/A(s,a) dueling streams. No BatchNorm: its train/eval statistics
+    mismatch would destabilize bootstrap targets in RL.
+    """
+
+    def __init__(self, in_channels=3, num_actions=4, grid_size=20, fc_dim=256):
+        super(D3QNCNN, self).__init__()
+        self.num_actions = num_actions
+
+        self.features = nn.Sequential(
+            nn.Conv2d(in_channels, 32, kernel_size=3, stride=2, padding=1),  # 20 -> 10
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),           # 10 -> 5
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),           # 5 -> 5
+            nn.ReLU(),
+            nn.Flatten(),
+        )
+        s1 = (grid_size - 1) // 2 + 1
+        s2 = (s1 - 1) // 2 + 1
+        feat_dim = 64 * s2 * s2
+
+        self.fc_shared = nn.Sequential(
+            nn.Linear(feat_dim, fc_dim),
+            nn.ReLU(),
+        )
+        self.value_stream = nn.Sequential(
+            nn.Linear(fc_dim, 128), nn.ReLU(), nn.Linear(128, 1)
+        )
+        self.advantage_stream = nn.Sequential(
+            nn.Linear(fc_dim, 128), nn.ReLU(), nn.Linear(128, num_actions)
+        )
+
+    def forward(self, x):
+        """x: (batch, 3, H, W) or a single (3, H, W) frame"""
+        if x.dim() == 3:
+            x = x.unsqueeze(0)
+        h = self.fc_shared(self.features(x))
+        V = self.value_stream(h)
+        A = self.advantage_stream(h)
+        return V + (A - A.mean(dim=1, keepdim=True))
+
+
 def test_d3qn():
     """Test the D3QN network"""
     print("Testing D3QN Network...")

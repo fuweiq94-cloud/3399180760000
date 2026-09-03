@@ -59,18 +59,30 @@ function Install-Deps {
 function Start-Training {
     Write-Host "`n[INFO] Starting D3QN Snake AI Training..." -ForegroundColor Cyan
     
+    # Navigate to src directory
+    Set-Location ..\src
+    
     # Activate virtual environment
-    $VIRTUAL_ENV = ".venv"
+    $VIRTUAL_ENV = "..\.venv"
     
     # Run Python script directly
-    & ".venv\Scripts\python.exe" train.py
+    & "..\.venv\Scripts\python.exe" train.py
+    
+    # Return to scripts directory
+    Set-Location ..\scripts
 }
 
 # Function to run demo
 function Start-Demo {
     Write-Host "`n[INFO] Starting D3QN Snake AI Demo..." -ForegroundColor Cyan
     
-    & ".venv\Scripts\python.exe" demo.py
+    # Navigate to src directory
+    Set-Location ..\src
+    
+    & "..\.venv\Scripts\python.exe" demo.py
+    
+    # Return to scripts directory
+    Set-Location ..\scripts
 }
 
 # Main execution
