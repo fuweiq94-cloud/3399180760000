@@ -358,14 +358,21 @@ class Trainer:
 
     def _append_history(self, episode, score, reward, death=None):
         """Append one line of per-episode history to the run folder —
-        the source data for the GUI's chart view."""
+        the source data for the GUI's chart view. A locked file costs one
+        chart point, never the training run."""
         d = self._run_dir()
         d.mkdir(parents=True, exist_ok=True)
-        with open(d / 'history.jsonl', 'a', encoding='utf-8') as f:
-            f.write(json.dumps({'episode': episode, 'score': score,
-                                'reward': round(reward, 2),
-                                'epsilon': round(self.agent.epsilon, 4),
-                                'death': death}) + '\n')
+        try:
+            with open(d / 'history.jsonl', 'a', encoding='utf-8') as f:
+                f.write(json.dumps({'episode': episode, 'score': score,
+                                    'reward': round(reward, 2),
+                                    'epsilon': round(self.agent.epsilon, 4),
+                                    'death': death}) + '\n')
+            self._history_io_warned = False
+        except OSError as e:
+            if not getattr(self, '_history_io_warned', False):
+                print(f"⚠️ history.jsonl 写入失败（图表会缺数据点，训练继续）：{e}")
+                self._history_io_warned = True
 
     def _write_plot(self, run_dir):
         best_idx = (self.best_episode - self.start_episode) \
@@ -388,7 +395,13 @@ class Trainer:
         d.mkdir(parents=True, exist_ok=True)
         self.agent.save(str(d / 'last_model.pth'))
         self._write_params(d, snapshot=True)
-        self._write_plot(d)
+        # Curves are cosmetic: a locked target (e.g. the png open in a
+        # viewer) must never kill the run — it once crashed a 20000-episode
+        # session at ep 4000 via OSError(22).
+        try:
+            self._write_plot(d)
+        except Exception as e:
+            print(f"⚠️ 曲线图保存失败，已跳过（训练继续）：{e}")
         print(f"⏳ Auto-save → {d}")
 
     def _finalize_run(self, stop_reason):
@@ -401,7 +414,10 @@ class Trainer:
         if self.best_episode is None:
             self.agent.save(str(d / 'best_model.pth'))
         self._write_params(d, stop_reason=stop_reason)
-        self._write_plot(d)
+        try:
+            self._write_plot(d)
+        except Exception as e:
+            print(f"⚠️ 曲线图保存失败，已跳过：{e}")
         return d
 
     def print_training_status(self, episode, reward, score, steps):
@@ -489,10 +505,14 @@ class Trainer:
                     self.print_training_status(episode, reward, score, self.total_steps)
                 
                 # Save model periodically: root checkpoint for resume
-                # + auto-save into this run's folder (last model + params + curves)
+                # + auto-save into this run's folder (last model + params + curves).
+                # I/O hiccups (locked files, full disk) must not kill the run.
                 if episode % self.save_interval == 0:
-                    self.save_trained_model(episode)
-                    self._auto_save_run()
+                    try:
+                        self.save_trained_model(episode)
+                        self._auto_save_run()
+                    except Exception as e:
+                        print(f"⚠️ 第 {episode} 局自动保存失败，已跳过（训练继续）：{e}")
                 
                 # Graceful stop: user closed the game window
                 if getattr(self.env, 'close_requested', False):
@@ -529,26 +549,34 @@ class Trainer:
         
         # Final summary + auto-save — runs on normal completion AND any manual stop
         self._training_summary()
-        
+
         print("\n📊 Generating training plots...")
-        self.plot_training_metrics()
-        
+        try:
+            self.plot_training_metrics()
+        except Exception as e:
+            print(f"⚠️ 训练曲线生成失败，已跳过：{e}")
+
         if self.last_episode >= self.start_episode:
-            self.save_trained_model(self.last_episode)
-            
-            # Exit-save: finalize this run's folder (best + last + params + curves)
-            print("\n📦 Exporting training run package...")
-            run_dir = self._finalize_run(stop_reason)
-            if self.best_episode is not None:
-                print(f"🏆 Best model → {run_dir / 'best_model.pth'}")
-                print(f"            (avg score {self.best_avg:.2f} over last "
-                      f"{self.best_avg_window} eps, peaked at episode {self.best_episode})")
-            else:
-                print(f"🏆 Best model → {run_dir / 'best_model.pth'} "
-                      f"(no reliable best this run — identical to final weights)")
-            print(f"📍 Last model → {run_dir / 'last_model.pth'} (episode {self.last_episode})")
-            print(f"📄 Params     → {run_dir / 'params.json'}")
-            print(f"📈 Curves     → {run_dir / 'training_metrics.png'}")
+            try:
+                self.save_trained_model(self.last_episode)
+
+                # Exit-save: finalize this run's folder (best + last + params + curves)
+                print("\n📦 Exporting training run package...")
+                run_dir = self._finalize_run(stop_reason)
+            except Exception as e:
+                run_dir = None
+                print(f"⚠️ 结束导出失败（根目录检查点可能已保存）：{e}")
+            if run_dir is not None:
+                if self.best_episode is not None:
+                    print(f"🏆 Best model → {run_dir / 'best_model.pth'}")
+                    print(f"            (avg score {self.best_avg:.2f} over last "
+                          f"{self.best_avg_window} eps, peaked at episode {self.best_episode})")
+                else:
+                    print(f"🏆 Best model → {run_dir / 'best_model.pth'} "
+                          f"(no reliable best this run — identical to final weights)")
+                print(f"📍 Last model → {run_dir / 'last_model.pth'} (episode {self.last_episode})")
+                print(f"📄 Params     → {run_dir / 'params.json'}")
+                print(f"📈 Curves     → {run_dir / 'training_metrics.png'}")
         else:
             print("No new episodes completed this session — keeping existing checkpoints.")
         

@@ -200,3 +200,23 @@ def test_short_run_without_best_falls_back_to_final_weights(redirected, cpu_only
     assert (d / 'best_model.pth').is_file()
     assert (d / 'last_model.pth').is_file()
     assert (d / 'training_metrics.png').is_file()
+
+
+def test_training_survives_locked_plot_output(tmp_path, monkeypatch):
+    """Regression: at ep 4000/20000 matplotlib raised OSError(22) saving
+    training_metrics.png (the file was open in a viewer) and the whole
+    training process died. Plot/export failures must only warn."""
+    import train as train_mod
+
+    def boom(*args, **kwargs):
+        raise OSError(22, 'Invalid argument')
+
+    monkeypatch.setattr(train_mod.Trainer, 'plot_training_metrics', boom)
+    monkeypatch.setattr(train_mod, 'PROJECT_ROOT', tmp_path)
+    t = train_mod.Trainer(n_episodes=5, max_steps_per_episode=4, log_interval=100,
+                          save_interval=2, resume=False, obs_type='vision',
+                          n_step=1, grid_size=8, preview_interval=0)
+    t.train()                                  # must not raise
+    assert t.last_episode == 5                 # every episode completed
+    # run folder still exported: last_model written by finalize
+    assert (t._run_dir() / 'last_model.pth').exists()
