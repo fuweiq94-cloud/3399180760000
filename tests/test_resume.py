@@ -93,3 +93,14 @@ def test_trainer_accepts_custom_epsilon_decay(tmp_path):
     trainer = Trainer(model_path=str(tmp_path / "none.pth"), obs_type="grid",
                       grid_size=10, epsilon_decay=0.995)
     assert trainer.agent.epsilon_decay == 0.995
+
+
+def test_trainer_grid_default_epsilon_decay_is_slow(tmp_path):
+    """The CNN branch must default to a long exploration tail (0.9997):
+    with 0.999 the policy hit the floor at ~ep 3000 before learning to
+    eat and never recovered."""
+    from train import Trainer
+    t = Trainer(model_path=str(tmp_path / "none.pth"), obs_type='grid',
+                n_step=1, grid_size=10)
+    assert t.agent.epsilon_decay == 0.9997
+    assert t.agent.epsilon_end == 0.10

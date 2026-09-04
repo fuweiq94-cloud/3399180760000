@@ -289,10 +289,13 @@ SETTINGS_FILE = 'studio_settings.json'
 
 DEFAULT_SETTINGS = {
     'train': {
-        'grid_size': 30,        # board edge in cells (CNN full-board obs)
+        'grid_size': 20,        # board edge in cells (CNN full-board obs);
+                                # 20×20 learns much faster than 30×30 —
+                                # same network, resumable across sizes
         'episodes': 20000,      # total target episodes
         'n_step': 3,            # n-step returns
-        'epsilon_decay': 0.999, # per-episode exploration decay
+        'epsilon_decay': 0.9997, # per-episode exploration decay; CNNs need
+                                 # a long tail or the policy freezes early
         'save_interval': 100,   # checkpoint + auto-save every N episodes
         'reward_shaping': 'scaled',  # 'scaled' = size-dependent rewards,
                                      # 'flat' = fixed +10 / -10
@@ -995,7 +998,7 @@ class StudioWindow(QMainWindow):
             ("n-step 回报", self.spin_set_nstep, "步",
              "多步回报：把奖励向前追认的步数，帮助学到远距离因果。"),
             ("ε 衰减率", self.spin_set_edecay, "/局",
-             "每局结束后探索率 ε 的衰减系数，越接近 1 探索越久。"),
+             "每局结束后探索率 ε 的衰减系数，越接近 1 探索越久。CNN 模型建议 0.9995~0.9999：衰减太快，策略会在学会吃食物前冻结（转圈等超时）。"),
             ("自动保存间隔", self.spin_set_saveint, "局",
              "每 N 局保存根目录检查点并自动导出 run 文件夹。"),
             ("自撞惩罚倍率", self.spin_set_selfdeath, "×",

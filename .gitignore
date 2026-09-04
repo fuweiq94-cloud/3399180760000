@@ -7,3 +7,7 @@ skills/
 
 # 运行时临时文件
 STOP
+
+# 工具缓存
+.pytest_cache/
+.qoder/

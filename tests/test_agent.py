@@ -66,3 +66,14 @@ def test_save_load_roundtrip_restores_policy_target_and_epsilon(agent, tmp_path)
     for (name, p), (_, q) in zip(restored.policy_net.state_dict().items(),
                                  restored.target_net.state_dict().items()):
         assert torch.allclose(p, q), f"target_net not synced on load: {name}"
+
+
+def test_epsilon_floor_defaults_higher_for_pixel_cnn():
+    """Pixel CNNs freeze into wall-avoiding circles if exploration dies
+    early (observed: floor 0.05 at ~ep 3000 on 30×30, avg score stuck at
+    ~0.1 for the remaining 17k episodes). They keep a 0.10 floor; the
+    proven-fast vision model keeps 0.05."""
+    assert D3QNAgent(obs_type='grid', grid_size=20, device='cpu').epsilon_end == 0.10
+    assert D3QNAgent(input_dim=10, device='cpu').epsilon_end == 0.05
+    assert D3QNAgent(obs_type='grid', grid_size=20,
+                     epsilon_end=0.07, device='cpu').epsilon_end == 0.07

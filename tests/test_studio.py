@@ -191,7 +191,7 @@ def test_settings_roundtrip_and_merge(tmp_path, monkeypatch):
         '{"eval": {"grid_size": 15}, "junk": 1}', encoding='utf-8')
     merged = load_settings()
     assert merged['eval']['grid_size'] == 15
-    assert merged['train']['grid_size'] == 30
+    assert merged['train']['grid_size'] == studio_mod.DEFAULT_SETTINGS['train']['grid_size']
     assert 'junk' not in merged
     # corrupt file ignored entirely
     (tmp_path / 'studio_settings.json').write_text('not json', encoding='utf-8')
@@ -234,7 +234,8 @@ def test_settings_view_saves_and_resets(qapp, monkeypatch, tmp_path):
     assert w.stack.currentIndex() == 0
     w._show_view(2)                       # settings page, no log tab to switch
     qapp.processEvents()
-    assert w.spin_set_grid.value() == 30  # defaults (no settings file yet)
+    assert w.spin_set_grid.value() == \
+        studio_mod.DEFAULT_SETTINGS['train']['grid_size']  # no settings file yet
     assert w.combo_set_rshape.currentData() == 'scaled'   # new default mode
     w.combo_set_rshape.setCurrentIndex(1)                 # switch to flat
     w.spin_set_grid.setValue(25)
@@ -248,7 +249,8 @@ def test_settings_view_saves_and_resets(qapp, monkeypatch, tmp_path):
     assert on_disk['eval']['grid_size'] == 14
     assert w.settings['train']['grid_size'] == 25
     w._reset_settings()
-    assert w.spin_set_grid.value() == 30
+    assert w.spin_set_grid.value() == \
+        studio_mod.DEFAULT_SETTINGS['train']['grid_size']
     assert w.spin_set_egrid.value() == 20
     assert w.combo_set_rshape.currentData() == 'scaled'
     w.close()

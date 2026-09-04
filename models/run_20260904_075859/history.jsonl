@@ -1,0 +1,10 @@
+{"episode": 1, "score": 0, "reward": -71.5, "epsilon": 0.2721, "death": "wall"}
+{"episode": 2, "score": 0, "reward": -21.3, "epsilon": 0.2718, "death": "wall"}
+{"episode": 3, "score": 0, "reward": -23.3, "epsilon": 0.2715, "death": "wall"}
+{"episode": 4, "score": 1, "reward": -13.55, "epsilon": 0.2713, "death": "wall"}
+{"episode": 5, "score": 0, "reward": -19.3, "epsilon": 0.271, "death": "wall"}
+{"episode": 6, "score": 0, "reward": -8.7, "epsilon": 0.2707, "death": "wall"}
+{"episode": 7, "score": 0, "reward": -11.1, "epsilon": 0.2705, "death": "wall"}
+{"episode": 8, "score": 0, "reward": -54.5, "epsilon": 0.2702, "death": "wall"}
+{"episode": 9, "score": 2, "reward": -28.75, "epsilon": 0.2699, "death": "self"}
+{"episode": 10, "score": 0, "reward": -23.3, "epsilon": 0.2696, "death": "wall"}

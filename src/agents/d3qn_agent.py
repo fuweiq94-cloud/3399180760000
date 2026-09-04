@@ -28,7 +28,7 @@ class D3QNAgent:
     
     def __init__(self, input_dim=10, num_actions=4, obs_type='vision',
                  n_step=1, buffer_size=100000, batch_size=64, grid_size=20,
-                 epsilon_decay=0.995,
+                 epsilon_decay=0.995, epsilon_end=None,
                  device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.device = device
         self.obs_type = obs_type
@@ -38,9 +38,18 @@ class D3QNAgent:
         # Hyperparameters
         self.gamma = 0.99          # Discount factor
         self.epsilon_start = 1.0   # Initial exploration rate
-        self.epsilon_end = 0.05    # Final exploration rate
+        # Pixel CNNs infer food geometry from raw boards — far slower than
+        # the 10-dim vision features — so they keep a higher exploration
+        # floor: at 0.05 the greedy policy froze into wall-avoiding circles
+        # long before food-seeking emerged (observed on 30×30: floor hit at
+        # ~ep 3000 with avg score still ≈ 0.1, then 17k episodes of
+        # self-reinforcement).
+        if epsilon_end is None:
+            epsilon_end = 0.10 if obs_type == 'grid' else 0.05
+        self.epsilon_end = epsilon_end  # Final exploration rate
         # 0.995/episode fits the fast-learning feature model; pixel CNNs
-        # need a longer exploration tail (e.g. 0.999 ≈ floor at ~3000 eps)
+        # need a longer exploration tail (e.g. 0.9997 keeps ε>0.3 until
+        # ~ep 4000 and reaches the 0.10 floor near ep 7700)
         self.epsilon_decay = epsilon_decay
         
         self.batch_size = batch_size

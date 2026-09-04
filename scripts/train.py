@@ -68,10 +68,13 @@ class Trainer:
                             self_death_factor=self_death_factor)
         if obs_type == 'grid':
             # Full-board CNN: bigger batches help, image replays need more RAM;
-            # slower epsilon decay — pixel CNNs learn later, keep exploring
+            # much slower epsilon decay — pixel CNNs learn late, and if
+            # exploration dies before food-seeking emerges the greedy policy
+            # freezes into wall-avoiding circles (0.999 hit the 0.10 floor at
+            # ~ep 2300 on 30×30 with avg score still ≈ 0.1 — never recovered)
             self.agent = D3QNAgent(obs_type='grid', n_step=n_step, grid_size=grid_size,
                                    buffer_size=50000, batch_size=128,
-                                   epsilon_decay=epsilon_decay if epsilon_decay is not None else 0.999)
+                                   epsilon_decay=epsilon_decay if epsilon_decay is not None else 0.9997)
         else:
             self.agent = D3QNAgent(n_step=n_step)
         
@@ -432,7 +435,8 @@ class Trainer:
               f"（撞自己死得比撞墙更亏，让蛇学会区分两种死法）")
         print(f"Step guidance: ±{STEP_GUIDANCE_COEFF:g}/len"
               f"（每步靠近食物加分、远离扣分；蛇越长信号越弱，避免长蛇无脑直冲）")
-        print(f"Epsilon decay: {self.agent.epsilon_decay}")
+        print(f"Epsilon decay: {self.agent.epsilon_decay:g} "
+              f"(floor {self.agent.epsilon_end:g})")
         print(f"Save interval: every {self.save_interval} episodes")
         if self.start_episode > self.n_episodes:
             print(f"⚠️ 起始局数 {self.start_episode} 已超过总局数 {self.n_episodes}"
@@ -616,7 +620,7 @@ def main():
     parser.add_argument('--n-step', dest='n_step', type=int, default=3,
                         help='n-step returns (default 3)')
     parser.add_argument('--epsilon-decay', dest='epsilon_decay', type=float,
-                        default=0.999, help='per-episode epsilon decay (default 0.999)')
+                        default=0.9997, help='per-episode epsilon decay (default 0.9997)')
     parser.add_argument('--reward-shaping', dest='reward_shaping',
                         choices=['flat', 'scaled'], default='scaled',
                         help="reward mode: 'scaled' = size-dependent food/death "

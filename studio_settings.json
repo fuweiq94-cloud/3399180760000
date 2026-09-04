@@ -1,14 +1,14 @@
 {
   "train": {
-    "grid_size": 30,
+    "grid_size": 20,
     "episodes": 20000,
     "n_step": 3,
-    "epsilon_decay": 0.999,
+    "epsilon_decay": 0.9997,
     "save_interval": 100,
     "reward_shaping": "scaled",
     "self_death_factor": 1.5
   },
   "eval": {
-    "grid_size": 30
+    "grid_size": 20
   }
 }
