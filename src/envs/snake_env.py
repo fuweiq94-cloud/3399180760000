@@ -130,8 +130,14 @@ class SnakeEnv(gym.Env):
             self.snake.insert(0, new_head)
             self.snake.pop()
             self.last_death_cause = None
-            # -0.1 living cost plus directional guidance toward the food
-            reward = -0.1 + self._step_guidance(head, new_head)
+            # No flat living cost: with γ=0.99 a -0.1/step cost accumulates
+            # to ≈ -10 across a full grid×grid episode — worse than the
+            # ≈ -9.5 early-death penalty, which made "charge the nearest
+            # wall" the reward-optimal policy for a food-blind snake
+            # (observed: 20×20 run collapsed to 100% wall deaths at
+            # ep 14500+). Directional guidance alone provides the per-step
+            # pressure, matching the reference implementation.
+            reward = self._step_guidance(head, new_head)
         
         obs = self._get_observation()
         truncated = False

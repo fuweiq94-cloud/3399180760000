@@ -127,16 +127,16 @@ def single_cell_env(food):
 
 def test_step_guidance_rewards_closer_move():
     env = single_cell_env(food=(5, 8))
-    _, reward, done, _, _ = env.step(3)        # right → closer: -0.1 + 0.3/1
+    _, reward, done, _, _ = env.step(3)        # right → closer: +0.3/1
     assert not done
-    assert reward == pytest.approx(0.2)
+    assert reward == pytest.approx(0.3)
 
 
 def test_step_guidance_penalizes_away_move():
     env = single_cell_env(food=(5, 8))
-    _, reward, done, _, _ = env.step(2)        # left → farther: -0.1 - 0.3/1
+    _, reward, done, _, _ = env.step(2)        # left → farther: -0.3/1
     assert not done
-    assert reward == pytest.approx(-0.4)
+    assert reward == pytest.approx(-0.3)
 
 
 def test_step_guidance_fades_with_snake_length():
@@ -144,9 +144,9 @@ def test_step_guidance_fades_with_snake_length():
     env.reset()
     env.snake = [(r, 5) for r in range(10)]    # len 10, head (0, 5)
     env.food = (0, 8)                          # to the right, off-body
-    _, reward, done, _, _ = env.step(3)        # closer: -0.1 + 0.3/10
+    _, reward, done, _, _ = env.step(3)        # closer: +0.3/10
     assert not done
-    assert reward == pytest.approx(-0.07)
+    assert reward == pytest.approx(0.03)
 
 
 def test_step_guidance_applies_in_both_shaping_modes():
@@ -155,7 +155,7 @@ def test_step_guidance_applies_in_both_shaping_modes():
         env.reward_shaping = shaping
         _, reward, done, _, _ = env.step(3)
         assert not done
-        assert reward == pytest.approx(0.2)
+        assert reward == pytest.approx(0.3)
 
 
 def test_step_guidance_never_zero_on_normal_move():
@@ -168,8 +168,20 @@ def test_step_guidance_never_zero_on_normal_move():
         env.food = (5, 9)                      # tail, which vacates in time
         _, reward, done, _, _ = env.step(action)
         assert not done
-        assert reward in (pytest.approx(-0.1 + 0.15),   # toward the food
-                          pytest.approx(-0.1 - 0.15))   # away from it
+        assert reward in (pytest.approx(0.15),                 # toward
+                          pytest.approx(-0.15))                # away
+
+
+def test_normal_move_has_no_living_cost():
+    """Regression: a flat -0.1/step living cost accumulated to ≈ -10 over a
+    full 20×20 episode — worse than the ≈ -9.5 early death penalty — so a
+    food-blind policy was reward-optimal charging the nearest wall (the
+    ep-14500+ collapse to 100% wall deaths). Normal steps now carry
+    guidance ONLY, keeping the ranking eat > circle > die."""
+    env = single_cell_env(food=(2, 5))         # straight up from the head
+    _, reward, done, _, _ = env.step(0)        # up → closer, len 1 → +0.3
+    assert not done
+    assert reward == pytest.approx(0.3)        # and nothing else
 
 
 # ------------------------------------------------- death-cause differentiation
