@@ -1,13 +1,13 @@
 {
-  "run_id": "20260904_075945",
-  "exported_at": "2026-09-04 11:02:27",
-  "export_status": "final",
+  "run_id": "20260904_225023",
+  "exported_at": "2026-09-04 23:49:23",
+  "export_status": "auto_save",
   "stop_reason": null,
   "network": "D3QNCNN",
-  "network_params": 1171589,
+  "network_params": 532613,
   "hyperparams": {
     "obs_type": "grid",
-    "grid_size": 30,
+    "grid_size": 20,
     "input_dim": 10,
     "reward_shaping": "scaled",
     "self_death_factor": 1.5,
@@ -23,40 +23,40 @@
     "buffer_size": 50000,
     "target_update_steps": 1000,
     "epsilon_start": 1.0,
-    "epsilon_end": 0.05,
-    "epsilon_decay": 0.999,
-    "epsilon_at_export": 0.05,
-    "agent_steps": 1652274
+    "epsilon_end": 0.1,
+    "epsilon_decay": 0.9997,
+    "epsilon_at_export": 0.40651476556290533,
+    "agent_steps": 447368
   },
   "run": {
-    "episodes_this_run": 18700,
-    "start_episode": 1301,
-    "end_episode": 20000,
-    "resumed_from": "D:\\zm\\D3QN\\models\\d3qn_snake_episode_1300.pth",
-    "total_env_steps": 1238982
+    "episodes_this_run": 3000,
+    "start_episode": 1,
+    "end_episode": 3000,
+    "resumed_from": null,
+    "total_env_steps": 447368
   },
   "metrics": {
     "max_score": 2,
-    "avg_score_last_100": 0.01,
-    "avg_reward_last_100": -17.36,
-    "final_epsilon": 0.05,
-    "losses_recorded": 1238852,
+    "avg_score_last_100": 0.41,
+    "avg_reward_last_100": -24.99,
+    "final_epsilon": 0.40651476556290533,
+    "losses_recorded": 447238,
     "deaths": {
-      "wall": 18288,
-      "self": 17,
-      "timeout": 371
+      "wall": 2646,
+      "self": 160,
+      "timeout": 194
     }
   },
   "best": {
     "criterion": "avg_score_last_100",
     "scope": "this training run",
     "min_episodes_required": 20,
-    "episode": 1320,
-    "avg_score": 0.6,
+    "episode": 1799,
+    "avg_score": 0.63,
     "fallback_to_last": false
   },
   "last": {
-    "episode": 20000,
+    "episode": 3000,
     "saved_by": "auto-save every save_interval episodes + exit-save"
   },
   "files": {
