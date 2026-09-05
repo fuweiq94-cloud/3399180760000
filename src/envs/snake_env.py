@@ -197,15 +197,28 @@ class SnakeEnv(gym.Env):
 
     def _get_grid_observation(self):
         """Full-board 3-channel image: ch0 snake body (head excluded),
-        ch1 food, ch2 head. Lets a CNN see the whole body geometry."""
+        ch1 food, ch2 head. Food and head are painted as 3x3 blobs: a
+        single cell gets aliased away by the stride-2 conv stack — with
+        point food a supervised probe could not learn the food's
+        row-direction at all (26% accuracy, chance level) vs 97% with
+        blobs, while large structures (walls of body) learned fine."""
         obs = np.zeros((3, self.grid_size, self.grid_size), dtype=np.float32)
         head = self.snake[0]
         for cell in self.snake:
             obs[0, cell[0], cell[1]] = 1.0
         obs[0, head[0], head[1]] = 0.0  # head lives in its own channel
-        obs[1, self.food[0], self.food[1]] = 1.0
-        obs[2, head[0], head[1]] = 1.0
+        self._paint_blob(obs, 1, self.food)
+        self._paint_blob(obs, 2, head)
         return obs
+
+    def _paint_blob(self, obs, channel, pos):
+        """Paint pos as a 3x3 blob, clipped at the walls."""
+        r, c = pos
+        for dr in (-1, 0, 1):
+            for dc in (-1, 0, 1):
+                rr, cc = r + dr, c + dc
+                if 0 <= rr < self.grid_size and 0 <= cc < self.grid_size:
+                    obs[channel, rr, cc] = 1.0
 
     def _get_vision_observation(self):
         """Get vision-based observation (8 directions + 2-axis food direction)"""

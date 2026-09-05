@@ -20,7 +20,15 @@ def test_grid_observation_shape_and_channel_semantics():
     assert obs[0, 10, 10] == 0.0                            # head excluded from body
     assert obs[0, 10, 11] == 1.0 and obs[0, 11, 11] == 1.0  # body cells
     assert obs[1, 0, 5] == 1.0                              # food channel
-    assert obs.sum() == 4.0                                 # 2 body + 1 food + 1 head
+    # Food and head are painted as 3x3 blobs (clipped at walls): point
+    # cells alias away under the stride-2 conv stack — supervised probe
+    # learned the food's row-direction 26% (chance) from points vs 97%
+    # from blobs, which is why 20x20 never learned to seek food.
+    assert obs[0].sum() == 2.0                              # body unchanged
+    assert obs[1].sum() == 6.0                              # food blob at wall
+    assert obs[2].sum() == 9.0                              # head blob mid-board
+    assert obs[1, 0, 4] == 1.0 and obs[1, 1, 5] == 1.0      # blob halo
+    assert obs[2, 9, 9] == 1.0 and obs[2, 11, 11] == 1.0
 
 
 def test_grid_observation_flows_through_reset_and_step():
