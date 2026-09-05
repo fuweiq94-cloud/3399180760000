@@ -71,9 +71,13 @@ class Trainer:
             # much slower epsilon decay — pixel CNNs learn late, and if
             # exploration dies before food-seeking emerges the greedy policy
             # freezes into wall-avoiding circles (0.999 hit the 0.10 floor at
-            # ~ep 2300 on 30×30 with avg score still ≈ 0.1 — never recovered)
+            # ~ep 2300 on 30×30 with avg score still ≈ 0.1 — never recovered).
+            # Buffer must hold enough EPISODES, not just transitions: a 20×20
+            # episode runs up to 400 steps, so 50k transitions was a ~150-episode
+            # window of highly correlated experience (vs ~1000 episodes at
+            # 10×10, which trains fine) — 200k restores a healthy mix.
             self.agent = D3QNAgent(obs_type='grid', n_step=n_step, grid_size=grid_size,
-                                   buffer_size=50000, batch_size=128,
+                                   buffer_size=200000, batch_size=128,
                                    epsilon_decay=epsilon_decay if epsilon_decay is not None else 0.9997)
         else:
             self.agent = D3QNAgent(n_step=n_step)
