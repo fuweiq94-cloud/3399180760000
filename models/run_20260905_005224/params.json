@@ -1,7 +1,7 @@
 {
-  "run_id": "20260904_225023",
-  "exported_at": "2026-09-05 00:19:06",
-  "export_status": "auto_save",
+  "run_id": "20260905_005224",
+  "exported_at": "2026-09-05 07:17:26",
+  "export_status": "final",
   "stop_reason": null,
   "network": "D3QNCNN",
   "network_params": 532613,
@@ -25,38 +25,38 @@
     "epsilon_start": 1.0,
     "epsilon_end": 0.1,
     "epsilon_decay": 0.9997,
-    "epsilon_at_export": 0.3011399909896719,
-    "agent_steps": 667804
+    "epsilon_at_export": 0.1,
+    "agent_steps": 3657961
   },
   "run": {
-    "episodes_this_run": 4000,
-    "start_episode": 1,
-    "end_episode": 4000,
-    "resumed_from": null,
-    "total_env_steps": 667804
+    "episodes_this_run": 16000,
+    "start_episode": 4001,
+    "end_episode": 20000,
+    "resumed_from": "D:\\zm\\D3QN\\models\\d3qn_snake_episode_4000.pth",
+    "total_env_steps": 2990157
   },
   "metrics": {
-    "max_score": 2,
-    "avg_score_last_100": 0.37,
-    "avg_reward_last_100": -29.59,
-    "final_epsilon": 0.3011399909896719,
-    "losses_recorded": 667674,
+    "max_score": 3,
+    "avg_score_last_100": 0.05,
+    "avg_reward_last_100": -12.17,
+    "final_epsilon": 0.1,
+    "losses_recorded": 2990027,
     "deaths": {
-      "wall": 3357,
-      "self": 203,
-      "timeout": 440
+      "wall": 10931,
+      "self": 189,
+      "timeout": 4880
     }
   },
   "best": {
     "criterion": "avg_score_last_100",
     "scope": "this training run",
     "min_episodes_required": 20,
-    "episode": 1799,
-    "avg_score": 0.63,
+    "episode": 4025,
+    "avg_score": 0.56,
     "fallback_to_last": false
   },
   "last": {
-    "episode": 4000,
+    "episode": 20000,
     "saved_by": "auto-save every save_interval episodes + exit-save"
   },
   "files": {
