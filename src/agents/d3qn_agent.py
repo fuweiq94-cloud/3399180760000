@@ -54,7 +54,8 @@ class D3QNAgent:
         
         self.batch_size = batch_size
         self.buffer_size = buffer_size
-        self.target_update = 1000  # Update target network every N steps
+        self.target_update = 1000  # legacy field (params.json); sync is now soft
+        self.tau = 0.005           # per-step Polyak coefficient for the target net
         
         # n-step returns (1 = classic one-step TD). Plain deque: the oldest
         # full window is emitted on the (n+1)-th push, so episode-end flush
@@ -128,12 +129,20 @@ class D3QNAgent:
             self._nstep_buf.popleft()
     
     def step(self):
-        """Per-step bookkeeping: step counter and periodic target network sync"""
+        """Per-step bookkeeping: step counter + soft (Polyak) target sync.
+
+        The old hard copy every `target_update` steps gave the bootstrap no
+        correction between swaps: once exploration thinned (ε < ~0.25) the
+        narrowed replay data couldn't anchor Q-values against each 1000-step
+        jump, and performance collapsed (20×20 peaked at avg 0.92 near
+        ε 0.35, fell to 0.05 by ε 0.10, never recovered). A per-step soft
+        update (τ=0.005, effective lag ~200 steps) keeps the target
+        continuously honest."""
         self.steps += 1
-        
-        # Update target network periodically
-        if self.steps % self.target_update == 0:
-            self.target_net.load_state_dict(self.policy_net.state_dict())
+        with torch.no_grad():
+            for tp, pp in zip(self.target_net.parameters(),
+                              self.policy_net.parameters()):
+                tp.mul_(1.0 - self.tau).add_(pp, alpha=self.tau)
     
     def end_episode(self):
         """Decay epsilon once per episode and flush partial n-step transitions"""

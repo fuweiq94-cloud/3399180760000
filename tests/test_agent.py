@@ -77,3 +77,24 @@ def test_epsilon_floor_defaults_higher_for_pixel_cnn():
     assert D3QNAgent(input_dim=10, device='cpu').epsilon_end == 0.05
     assert D3QNAgent(obs_type='grid', grid_size=20,
                      epsilon_end=0.07, device='cpu').epsilon_end == 0.07
+
+
+def test_target_net_soft_updates_and_never_hard_swaps(agent):
+    """Regression: the target net must track the policy softly (Polyak,
+    tau=0.005) every step instead of a hard copy every 1000 steps — hard
+    swaps left the bootstrap unanchored between jumps and the policy
+    forgot food-seeking once exploration thinned (0.92 -> 0.05 on 20x20)."""
+    import copy
+    before = copy.deepcopy(list(agent.target_net.parameters()))
+    # nudge the policy so a soft update has something to track
+    with torch.no_grad():
+        for p in agent.policy_net.parameters():
+            p.add_(0.1)
+    agent.steps = 999          # old hard-swap boundary must NOT trigger a copy
+    agent.step()
+    tau = agent.tau
+    for old, new, pol in zip(before, agent.target_net.parameters(),
+                             agent.policy_net.parameters()):
+        assert not torch.equal(old, new)            # moved toward policy
+        expected = old * (1 - tau) + pol * tau
+        assert torch.allclose(new, expected, atol=1e-6)
